@@ -34,6 +34,9 @@ jobs:
         with:
           token: ${{ secrets.GH_PAT }}
 
+      - name: Install dependencies
+        run: bundle install
+
       # Match prints a huge ASCII table by default that can leak cert
       # details in logs — same patch Trio uses to silence it.
       - name: Patch fastlane match to skip table output
@@ -43,8 +46,23 @@ jobs:
             sed -i "" "/puts(Terminal::Table.new(params))/d" "$TABLE_PRINTER_PATH"
           fi
 
-      - name: Install dependencies
-        run: bundle install
+      # Fix the "invalid curve name (OpenSSL::PKey::ECError)" failure in
+      # fastlane's app_store_connect_api_key action. The bundled token.rb
+      # calls `OpenSSL::PKey::EC.new(key)` which can't parse PKCS#8 PEM
+      # keys (Apple's .p8 format) on newer OpenSSL versions. Swap it for
+      # `OpenSSL::PKey.read(key)` which handles PKCS#8 cleanly.
+      # Tracked at https://github.com/fastlane/fastlane/issues/20553
+      - name: Patch fastlane token.rb for PKCS#8 EC key parsing
+        run: |
+          TOKEN_RB=$(ruby -e 'puts Gem::Specification.find_by_name("fastlane").gem_dir')/spaceship/lib/spaceship/connect_api/token.rb
+          if [ -f "$TOKEN_RB" ]; then
+            sed -i "" 's|OpenSSL::PKey::EC\.new(key)|OpenSSL::PKey.read(key)|g' "$TOKEN_RB"
+            echo "Patched: $TOKEN_RB"
+            grep -n "OpenSSL::PKey" "$TOKEN_RB" | head -5
+          else
+            echo "::error::token.rb not found at expected path: $TOKEN_RB"
+            exit 1
+          fi
 
       # Apple's signing servers reject requests if the runner's clock
       # drifts. macos-26 runners have been seen with seconds of drift.
