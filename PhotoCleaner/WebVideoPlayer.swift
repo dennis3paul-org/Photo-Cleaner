@@ -173,6 +173,17 @@ struct WebVideoPlayer: UIViewRepresentable {
             pointer-events: none;
           }
           .hidden { opacity: 0 !important; }
+          /* Debug overlay — shows live video element state so we can
+             diagnose autoplay/loading issues on real devices. Sits at
+             the top of the card, doesn't block taps. */
+          #pcDebug {
+            position: absolute; top: 6px; left: 6px; right: 6px;
+            background: rgba(0,0,0,0.78); color: #fff;
+            padding: 5px 8px; border-radius: 6px;
+            font-family: -apple-system, monospace; font-size: 10px;
+            line-height: 1.3; pointer-events: none; z-index: 10;
+            text-align: left; word-break: break-all;
+          }
         </style>
         </head><body>
           <div class="stage">
@@ -183,43 +194,69 @@ struct WebVideoPlayer: UIViewRepresentable {
               x-webkit-airplay="deny"
               disableRemotePlayback
               src="\(videoEscaped)"></video>
+            <div id="pcDebug">init…</div>
           </div>
           <script>
             (function () {
               var v = document.getElementById('v');
               var p = document.getElementById('poster');
+              var dbg = document.getElementById('pcDebug');
+              var lines = [];
+              function log(msg) {
+                lines.push(msg);
+                if (lines.length > 6) lines.shift();
+                if (dbg) dbg.textContent = lines.join('\\n');
+              }
+
+              // Show what URL the video is using (truncated). pcvideo:// =
+              // prefetched local file (fast). https = remote fetch (slow,
+              // depends on cookies reaching the WebView).
+              var srcStr = v.currentSrc || v.src || '';
+              var srcShort = srcStr.length > 70 ? srcStr.substring(0, 70) + '…' : srcStr;
+              log('src: ' + srcShort);
+              log('ua hint: ' + navigator.platform);
+
               function hidePoster() {
                 if (p && !p.classList.contains('hidden')) p.classList.add('hidden');
               }
-              v.addEventListener('playing', hidePoster);
-              v.addEventListener('timeupdate', hidePoster);
-              v.addEventListener('canplay', function () { v.play().catch(function(){}); });
-              v.addEventListener('loadeddata', function () { v.play().catch(function(){}); });
 
-              // GRACEFUL FALLBACK — if the =dv URL returns 404 / wrong
-              // content-type (which happens when we mis-classify a photo
-              // as a video), hide the <video> entirely. The poster <img>
-              // is the photo's full thumbnail, so the card still looks
-              // right. Catches both source error and media error events.
-              function failToPoster() {
-                v.style.display = 'none';
-                // Make sure the poster stays visible.
-                if (p) p.classList.remove('hidden');
-              }
-              v.addEventListener('error', failToPoster);
-              v.addEventListener('stalled', function () {
-                // Stalled-for-too-long → fall back. 5s is enough that real
-                // videos with slow first-byte still get a chance.
-                setTimeout(function () {
-                  if (v.readyState < 2) failToPoster();
-                }, 5000);
+              v.addEventListener('loadstart',     function () { log('loadstart'); });
+              v.addEventListener('loadedmetadata', function () { log('metadata: ' + v.videoWidth + 'x' + v.videoHeight); });
+              v.addEventListener('loadeddata',    function () { log('loadeddata'); v.play().catch(function(e){ log('play() rejected: ' + e.message); }); });
+              v.addEventListener('canplay',       function () { log('canplay'); v.play().catch(function(e){ log('play() rejected: ' + e.message); }); });
+              v.addEventListener('playing',       function () { log('PLAYING'); hidePoster(); });
+              v.addEventListener('timeupdate',    function () { hidePoster(); });
+              v.addEventListener('stalled',       function () { log('stalled (readyState=' + v.readyState + ')'); });
+              v.addEventListener('waiting',       function () { log('waiting (readyState=' + v.readyState + ')'); });
+              v.addEventListener('suspend',       function () { log('suspend'); });
+              v.addEventListener('error', function () {
+                var err = v.error;
+                var msg = 'unknown';
+                if (err) {
+                  switch (err.code) {
+                    case 1: msg = '1 ABORTED'; break;
+                    case 2: msg = '2 NETWORK'; break;
+                    case 3: msg = '3 DECODE'; break;
+                    case 4: msg = '4 SRC_NOT_SUPPORTED'; break;
+                    default: msg = String(err.code);
+                  }
+                  if (err.message) msg += ' (' + err.message + ')';
+                }
+                log('ERROR: ' + msg);
               });
 
-              // Aggressive autoplay kicks — Safari sometimes ignores the
-              // attribute until the first frame is decoded.
-              setTimeout(function () { v.play().catch(function(){}); }, 100);
-              setTimeout(function () { v.play().catch(function(){}); }, 500);
-              setTimeout(function () { v.play().catch(function(){}); }, 1500);
+              // Aggressive autoplay kicks — iOS Safari sometimes ignores
+              // the autoplay attribute until the first frame is decoded.
+              setTimeout(function () { v.play().catch(function(e){ log('kick100 rejected: ' + e.message); }); }, 100);
+              setTimeout(function () { v.play().catch(function(e){ log('kick500 rejected: ' + e.message); }); }, 500);
+              setTimeout(function () { v.play().catch(function(e){ log('kick1500 rejected: ' + e.message); }); }, 1500);
+
+              // Tap anywhere on the stage to try playing — gives the
+              // user an escape hatch if autoplay is blocked.
+              document.body.addEventListener('click', function () {
+                log('tap → play()');
+                v.play().catch(function(e){ log('tap-play rejected: ' + e.message); });
+              });
             })();
           </script>
         </body></html>
