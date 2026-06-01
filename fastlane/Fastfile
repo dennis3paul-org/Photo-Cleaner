@@ -23,6 +23,22 @@ FASTLANE_ISSUER_ID      = ENV["FASTLANE_ISSUER_ID"]
 FASTLANE_KEY            = ENV["FASTLANE_KEY"]
 ENV["FASTLANE_XCODEBUILD_SETTINGS_TIMEOUT"] = "120"
 
+# Auto-detect whether FASTLANE_KEY is raw PEM (-----BEGIN PRIVATE KEY-----
+# at the top) or just the base64 body. Trio's pattern always passes raw
+# PEM, but the user's org-level secret was stored base64-encoded for the
+# Photo Cleaner setup. This helper returns the kwargs that match either
+# format so the same Fastfile works for both.
+def asc_api_key_kwargs
+  raw = ENV["FASTLANE_KEY"].to_s
+  is_base64 = !raw.lstrip.start_with?("-----BEGIN")
+  {
+    key_id: "#{FASTLANE_KEY_ID}",
+    issuer_id: "#{FASTLANE_ISSUER_ID}",
+    key_content: raw,
+    is_key_content_base64: is_base64
+  }
+end
+
 platform :ios do
 
   desc "Build PhotoCleaner"
@@ -39,11 +55,7 @@ platform :ios do
       teamid: "#{TEAMID}"
     )
 
-    api_key = app_store_connect_api_key(
-      key_id: "#{FASTLANE_KEY_ID}",
-      issuer_id: "#{FASTLANE_ISSUER_ID}",
-      key_content: "#{FASTLANE_KEY}"
-    )
+    api_key = app_store_connect_api_key(**asc_api_key_kwargs)
 
     # Bump build number above whatever TestFlight currently has. Avoids
     # the "build number already used" rejection.
@@ -93,11 +105,7 @@ platform :ios do
 
   desc "Push the latest .ipa to TestFlight"
   lane :release do
-    api_key = app_store_connect_api_key(
-      key_id: "#{FASTLANE_KEY_ID}",
-      issuer_id: "#{FASTLANE_ISSUER_ID}",
-      key_content: "#{FASTLANE_KEY}"
-    )
+    api_key = app_store_connect_api_key(**asc_api_key_kwargs)
 
     upload_to_testflight(
       api_key: api_key,
@@ -113,11 +121,7 @@ platform :ios do
     setup_ci if ENV["CI"]
     ENV["MATCH_READONLY"] = false.to_s
 
-    app_store_connect_api_key(
-      key_id: "#{FASTLANE_KEY_ID}",
-      issuer_id: "#{FASTLANE_ISSUER_ID}",
-      key_content: "#{FASTLANE_KEY}"
-    )
+    app_store_connect_api_key(**asc_api_key_kwargs)
 
     # PhotoKit access is handled by Info.plist's NSPhotoLibraryUsageDescription;
     # no explicit Bundle ID capabilities required.
@@ -133,11 +137,7 @@ platform :ios do
     setup_ci if ENV["CI"]
     ENV["MATCH_READONLY"] = false.to_s
 
-    app_store_connect_api_key(
-      key_id: "#{FASTLANE_KEY_ID}",
-      issuer_id: "#{FASTLANE_ISSUER_ID}",
-      key_content: "#{FASTLANE_KEY}"
-    )
+    app_store_connect_api_key(**asc_api_key_kwargs)
 
     match(
       type: "appstore",
@@ -153,11 +153,7 @@ platform :ios do
     setup_ci if ENV["CI"]
     ENV["MATCH_READONLY"] = true.to_s
 
-    app_store_connect_api_key(
-      key_id: "#{FASTLANE_KEY_ID}",
-      issuer_id: "#{FASTLANE_ISSUER_ID}",
-      key_content: "#{FASTLANE_KEY}"
-    )
+    app_store_connect_api_key(**asc_api_key_kwargs)
 
     Spaceship::ConnectAPI::BundleId.find(BUNDLE_ID)
 

@@ -58,6 +58,34 @@ jobs:
             exit 1
           fi
 
+      # Diagnostic: print structural info about FASTLANE_KEY WITHOUT
+      # exposing its value. GitHub's secret-masking redacts the actual
+      # bytes, but length / line count / whether-PEM-or-base64 are safe
+      # to surface. If "Looks like: base64-encoded body" we know
+      # is_key_content_base64:true is correct; if "Looks like: raw PEM"
+      # the format is fine and the bug is elsewhere.
+      - name: Diagnose FASTLANE_KEY format
+        env:
+          KEY: ${{ secrets.FASTLANE_KEY }}
+        run: |
+          echo "Key length: ${#KEY} chars"
+          LINES=$(printf '%s' "$KEY" | wc -l | tr -d ' ')
+          echo "Line count: $LINES"
+          FIRST=$(printf '%s' "$KEY" | head -c 30)
+          # Only safe to print first few chars if they're PEM markers
+          if printf '%s' "$KEY" | head -1 | grep -q "BEGIN PRIVATE KEY"; then
+            echo "Looks like: raw PEM (starts with '-----BEGIN PRIVATE KEY-----')"
+          elif printf '%s' "$KEY" | head -1 | grep -q "BEGIN"; then
+            echo "Looks like: PEM with non-standard header"
+          else
+            echo "Looks like: base64-encoded body (no -----BEGIN header)"
+          fi
+          if printf '%s' "$KEY" | tail -1 | grep -q "END PRIVATE KEY"; then
+            echo "Trailer: ends with '-----END PRIVATE KEY-----'"
+          else
+            echo "Trailer: no -----END marker"
+          fi
+
       - name: Register bundle ID
         run: bundle exec fastlane identifiers
 
