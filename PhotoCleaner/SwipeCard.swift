@@ -23,7 +23,15 @@ struct SwipeCard<ImageContent: View>: View {
     @State private var dragOffset: CGSize = .zero
     @State private var isFlying: Bool = false
 
-    private let threshold: CGFloat = 110
+    /// Distance the user must drag for a release to commit, in points.
+    /// Roughly 32% of an iPhone screen width. Higher than the original
+    /// 110pt so casual back-and-forth doesn't accidentally trigger.
+    private let commitThreshold: CGFloat = 140
+
+    /// If a flick's predicted resting position is past this multiple of
+    /// commitThreshold, we commit even if the actual drag was short.
+    /// Lets fast flicks fire without needing a long drag.
+    private let flickPredictedMultiplier: CGFloat = 1.6
 
     init(
         label: String,
@@ -158,37 +166,61 @@ struct SwipeCard<ImageContent: View>: View {
         }
     }
     private var yOffsetForStack: CGFloat { CGFloat(stackOffset) * 8 }
-    private var rotationAngle: Double { Double(dragOffset.width / 20) }
+    /// Subtle rotation that lags the drag a bit — divider of 25 instead
+    /// of the original 20 gives a gentler tilt so the card doesn't
+    /// rotate too aggressively at small distances.
+    private var rotationAngle: Double { Double(dragOffset.width / 25) }
     private var deleteHintOpacity: Double {
-        max(0, min(1, Double(-dragOffset.width / threshold)))
+        max(0, min(1, Double(-dragOffset.width / commitThreshold)))
     }
     private var keepHintOpacity: Double {
-        max(0, min(1, Double(dragOffset.width / threshold)))
+        max(0, min(1, Double(dragOffset.width / commitThreshold)))
     }
 
+    /// Velocity-aware swipe.
+    ///   - During drag: card follows the finger 1:1 — drag back to zero
+    ///     to cancel, no commitment yet.
+    ///   - On release: commit only if EITHER the user dragged past the
+    ///     commit threshold, OR they flicked fast enough that the
+    ///     predicted resting position would be past the threshold.
+    ///   - Otherwise spring back to center with an interactive spring
+    ///     (lower stiffness than the previous .spring(duration: 0.2),
+    ///     feels more physical).
     private var dragGesture: some Gesture {
         DragGesture()
-            .onChanged { value in dragOffset = value.translation }
+            .onChanged { value in
+                dragOffset = value.translation
+            }
             .onEnded { value in
                 let dx = value.translation.width
-                if dx < -threshold {
-                    fly(to: .delete, direction: -1)
-                } else if dx > threshold {
-                    fly(to: .keep, direction: 1)
+                let predicted = value.predictedEndTranslation.width
+                let commitsByDistance = abs(dx) > commitThreshold
+                let commitsByFlick = abs(predicted) > commitThreshold * flickPredictedMultiplier
+                let direction: SwipeDecision = (predicted < 0 || dx < 0) ? .delete : .keep
+                let sign: CGFloat = direction == .delete ? -1 : 1
+
+                if commitsByDistance || commitsByFlick {
+                    fly(to: direction, direction: sign)
                 } else {
-                    withAnimation(.spring(duration: 0.2)) {
+                    withAnimation(.interactiveSpring(response: 0.4, dampingFraction: 0.72, blendDuration: 0.2)) {
                         dragOffset = .zero
                     }
                 }
             }
     }
 
+    /// Fly the card offscreen in the chosen direction. Slower curve
+    /// (0.32s) and longer travel (1.5× screen width) so the card
+    /// actually flies all the way off — feels like a real toss, not a
+    /// snap.
     private func fly(to decision: SwipeDecision, direction: CGFloat) {
         isFlying = true
-        withAnimation(.easeOut(duration: 0.18)) {
-            dragOffset = CGSize(width: direction * 600, height: dragOffset.height)
+        // Pick a curve that starts fast and decelerates — gives the
+        // "thrown" feel rather than "snapped".
+        withAnimation(.timingCurve(0.20, 0.60, 0.30, 1.0, duration: 0.32)) {
+            dragOffset = CGSize(width: direction * 900, height: dragOffset.height + (decision == .delete ? -20 : 20))
         }
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.16) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.28) {
             onDecision(decision)
         }
     }

@@ -287,11 +287,14 @@ struct GPCleanupView: View {
                 lastError = "XwAOJf: \(final.lastError)"
             }
 
-            // Reload AFTER the RPC actually completed so it doesn't kill
-            // the in-flight fetch.
-            if result.succeeded > 0 {
-                Task { await reloadAction() }
-            }
+            // Note: we intentionally do NOT reload the GP WebView after
+            // the XwAOJf bulk RPC anymore. The reload took 5-10s and was
+            // the slowest part of the user's cleanup experience. The
+            // visible tradeoff: GP uses absolute-positioned grid cells,
+            // so removing tiles via hideDeletedAction leaves gaps until
+            // the next full GP navigation. That's an acceptable cost
+            // for instant return-to-library — users naturally re-scroll
+            // or revisit, which causes GP to reflow on its own.
         } catch {
             lastError = "Both paths failed. GP UI: \(nativeError ?? "?"). RPC: \(error.localizedDescription)"
             failed = queue.map(\.id)
