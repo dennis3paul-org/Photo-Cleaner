@@ -1,0 +1,59 @@
+# Xcode
+DerivedData/
+build/
+*.xcuserdata/
+*.xcuserstate
+xcuserdata/
+*.xcscmblueprint
+*.xccheckout
+.DS_Store
+
+# Swift Package Manager
+.swiftpm/
+.build/
+Packages/
+Package.pins
+Package.resolved
+
+# CocoaPods (unused but defensive)
+Pods/
+
+# Carthage (unused but defensive)
+Carthage/Build/
+
+# Fastlane
+fastlane/report.xml
+fastlane/Preview.html
+fastlane/screenshots
+fastlane/test_output
+fastlane/README.md
+*.ipa
+*.dSYM.zip
+*.dSYM
+
+# Code signing — NEVER commit these
+*.p12
+*.cer
+*.certSigningRequest
+*.mobileprovision
+*.p8
+
+# Environment / secrets
+.env
+.env.*
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Claude Code local state (per-machine, not for sharing)
+.claude/
+
+# Chrome extension reference repo (separate project, kept locally for
+# cross-reference but not part of the iOS app)
+photo-cleaner-pwa/
+
+# Editor
+.vscode/
+.idea/
+*.swp

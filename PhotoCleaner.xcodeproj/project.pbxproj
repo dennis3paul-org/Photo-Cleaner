@@ -1,0 +1,405 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 56;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		E000000000000000000000A1 /* PhotoCleanerApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = D000000000000000000000A1 /* PhotoCleanerApp.swift */; };
+		E000000000000000000000A2 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D000000000000000000000A2 /* ContentView.swift */; };
+		E000000000000000000000A3 /* AppModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = D000000000000000000000A3 /* AppModel.swift */; };
+		E000000000000000000000A4 /* PhotoLibraryService.swift in Sources */ = {isa = PBXBuildFile; fileRef = D000000000000000000000A4 /* PhotoLibraryService.swift */; };
+		E000000000000000000000A5 /* IdleView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D000000000000000000000A5 /* IdleView.swift */; };
+		E000000000000000000000A6 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = D000000000000000000000A7 /* Assets.xcassets */; };
+		E000000000000000000000A9 /* BatchScope.swift in Sources */ = {isa = PBXBuildFile; fileRef = D000000000000000000000A9 /* BatchScope.swift */; };
+		E000000000000000000000AA /* PickBatchView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D000000000000000000000AA /* PickBatchView.swift */; };
+		E000000000000000000000AB /* TriageView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D000000000000000000000AB /* TriageView.swift */; };
+		E000000000000000000000AC /* GooglePhotosWebView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D000000000000000000000AC /* GooglePhotosWebView.swift */; };
+		E000000000000000000000AD /* GooglePhotosView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D000000000000000000000AD /* GooglePhotosView.swift */; };
+		E000000000000000000000AE /* GPSwipeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D000000000000000000000AE /* GPSwipeView.swift */; };
+		E000000000000000000000AF /* GPCleanupView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D000000000000000000000AF /* GPCleanupView.swift */; };
+		E000000000000000000000B0 /* SwipeCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = D000000000000000000000B0 /* SwipeCard.swift */; };
+		E000000000000000000000B1 /* PHAssetImage.swift in Sources */ = {isa = PBXBuildFile; fileRef = D000000000000000000000B1 /* PHAssetImage.swift */; };
+		E000000000000000000000B2 /* LocalCleanupView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D000000000000000000000B2 /* LocalCleanupView.swift */; };
+		E000000000000000000000B3 /* ShakeGesture.swift in Sources */ = {isa = PBXBuildFile; fileRef = D000000000000000000000B3 /* ShakeGesture.swift */; };
+		E000000000000000000000B4 /* WebVideoPlayer.swift in Sources */ = {isa = PBXBuildFile; fileRef = D000000000000000000000B4 /* WebVideoPlayer.swift */; };
+		E000000000000000000000B5 /* GooglePhotosLogo.swift in Sources */ = {isa = PBXBuildFile; fileRef = D000000000000000000000B5 /* GooglePhotosLogo.swift */; };
+		E000000000000000000000B6 /* VideoFilePrefetcher.swift in Sources */ = {isa = PBXBuildFile; fileRef = D000000000000000000000B6 /* VideoFilePrefetcher.swift */; };
+		E000000000000000000000B7 /* PCVideoSchemeHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = D000000000000000000000B7 /* PCVideoSchemeHandler.swift */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		D000000000000000000000A1 /* PhotoCleanerApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhotoCleanerApp.swift; sourceTree = "<group>"; };
+		D000000000000000000000A2 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
+		D000000000000000000000A3 /* AppModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppModel.swift; sourceTree = "<group>"; };
+		D000000000000000000000A4 /* PhotoLibraryService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhotoLibraryService.swift; sourceTree = "<group>"; };
+		D000000000000000000000A5 /* IdleView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IdleView.swift; sourceTree = "<group>"; };
+		D000000000000000000000A6 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		D000000000000000000000A7 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		D000000000000000000000A8 /* PhotoCleaner.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = PhotoCleaner.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		D000000000000000000000A9 /* BatchScope.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BatchScope.swift; sourceTree = "<group>"; };
+		D000000000000000000000AA /* PickBatchView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PickBatchView.swift; sourceTree = "<group>"; };
+		D000000000000000000000AB /* TriageView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TriageView.swift; sourceTree = "<group>"; };
+		D000000000000000000000AC /* GooglePhotosWebView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GooglePhotosWebView.swift; sourceTree = "<group>"; };
+		D000000000000000000000AD /* GooglePhotosView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GooglePhotosView.swift; sourceTree = "<group>"; };
+		D000000000000000000000AE /* GPSwipeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GPSwipeView.swift; sourceTree = "<group>"; };
+		D000000000000000000000AF /* GPCleanupView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GPCleanupView.swift; sourceTree = "<group>"; };
+		D000000000000000000000B0 /* SwipeCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SwipeCard.swift; sourceTree = "<group>"; };
+		D000000000000000000000B1 /* PHAssetImage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PHAssetImage.swift; sourceTree = "<group>"; };
+		D000000000000000000000B2 /* LocalCleanupView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalCleanupView.swift; sourceTree = "<group>"; };
+		D000000000000000000000B3 /* ShakeGesture.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShakeGesture.swift; sourceTree = "<group>"; };
+		D000000000000000000000B4 /* WebVideoPlayer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WebVideoPlayer.swift; sourceTree = "<group>"; };
+		D000000000000000000000B5 /* GooglePhotosLogo.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GooglePhotosLogo.swift; sourceTree = "<group>"; };
+		D000000000000000000000B6 /* VideoFilePrefetcher.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VideoFilePrefetcher.swift; sourceTree = "<group>"; };
+		D000000000000000000000B7 /* PCVideoSchemeHandler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PCVideoSchemeHandler.swift; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		C000000000000000000000C3 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		A000000000000000000000A2 /* Main */ = {
+			isa = PBXGroup;
+			children = (
+				A000000000000000000000A4 /* PhotoCleaner */,
+				A000000000000000000000A3 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		A000000000000000000000A3 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				D000000000000000000000A8 /* PhotoCleaner.app */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		A000000000000000000000A4 /* PhotoCleaner */ = {
+			isa = PBXGroup;
+			children = (
+				D000000000000000000000A1 /* PhotoCleanerApp.swift */,
+				D000000000000000000000A2 /* ContentView.swift */,
+				D000000000000000000000A3 /* AppModel.swift */,
+				D000000000000000000000A4 /* PhotoLibraryService.swift */,
+				D000000000000000000000A5 /* IdleView.swift */,
+				D000000000000000000000A9 /* BatchScope.swift */,
+				D000000000000000000000AA /* PickBatchView.swift */,
+				D000000000000000000000AB /* TriageView.swift */,
+				D000000000000000000000AC /* GooglePhotosWebView.swift */,
+				D000000000000000000000AD /* GooglePhotosView.swift */,
+				D000000000000000000000AE /* GPSwipeView.swift */,
+				D000000000000000000000AF /* GPCleanupView.swift */,
+				D000000000000000000000B0 /* SwipeCard.swift */,
+				D000000000000000000000B1 /* PHAssetImage.swift */,
+				D000000000000000000000B2 /* LocalCleanupView.swift */,
+				D000000000000000000000B3 /* ShakeGesture.swift */,
+				D000000000000000000000B4 /* WebVideoPlayer.swift */,
+				D000000000000000000000B5 /* GooglePhotosLogo.swift */,
+				D000000000000000000000B6 /* VideoFilePrefetcher.swift */,
+				D000000000000000000000B7 /* PCVideoSchemeHandler.swift */,
+				D000000000000000000000A7 /* Assets.xcassets */,
+				D000000000000000000000A6 /* Info.plist */,
+			);
+			path = PhotoCleaner;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		B000000000000000000000B1 /* PhotoCleaner */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = B000000000000000000000B2 /* Build configuration list for PBXNativeTarget "PhotoCleaner" */;
+			buildPhases = (
+				C000000000000000000000C1 /* Sources */,
+				C000000000000000000000C2 /* Resources */,
+				C000000000000000000000C3 /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = PhotoCleaner;
+			productName = PhotoCleaner;
+			productReference = D000000000000000000000A8 /* PhotoCleaner.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		A000000000000000000000A1 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = 1;
+				LastSwiftUpdateCheck = 1530;
+				LastUpgradeCheck = 1530;
+				TargetAttributes = {
+					B000000000000000000000B1 = {
+						CreatedOnToolsVersion = 15.3;
+					};
+				};
+			};
+			buildConfigurationList = B000000000000000000000B5 /* Build configuration list for PBXProject "PhotoCleaner" */;
+			compatibilityVersion = "Xcode 14.0";
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+				Base,
+			);
+			mainGroup = A000000000000000000000A2;
+			productRefGroup = A000000000000000000000A3 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				B000000000000000000000B1 /* PhotoCleaner */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		C000000000000000000000C2 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				E000000000000000000000A6 /* Assets.xcassets in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		C000000000000000000000C1 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				E000000000000000000000A1 /* PhotoCleanerApp.swift in Sources */,
+				E000000000000000000000A2 /* ContentView.swift in Sources */,
+				E000000000000000000000A3 /* AppModel.swift in Sources */,
+				E000000000000000000000A4 /* PhotoLibraryService.swift in Sources */,
+				E000000000000000000000A5 /* IdleView.swift in Sources */,
+				E000000000000000000000A9 /* BatchScope.swift in Sources */,
+				E000000000000000000000AA /* PickBatchView.swift in Sources */,
+				E000000000000000000000AB /* TriageView.swift in Sources */,
+				E000000000000000000000AC /* GooglePhotosWebView.swift in Sources */,
+				E000000000000000000000AD /* GooglePhotosView.swift in Sources */,
+				E000000000000000000000AE /* GPSwipeView.swift in Sources */,
+				E000000000000000000000AF /* GPCleanupView.swift in Sources */,
+				E000000000000000000000B0 /* SwipeCard.swift in Sources */,
+				E000000000000000000000B1 /* PHAssetImage.swift in Sources */,
+				E000000000000000000000B2 /* LocalCleanupView.swift in Sources */,
+				E000000000000000000000B3 /* ShakeGesture.swift in Sources */,
+				E000000000000000000000B4 /* WebVideoPlayer.swift in Sources */,
+				E000000000000000000000B5 /* GooglePhotosLogo.swift in Sources */,
+				E000000000000000000000B6 /* VideoFilePrefetcher.swift in Sources */,
+				E000000000000000000000B7 /* PCVideoSchemeHandler.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+		B000000000000000000000B6 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"DEBUG=1",
+					"$(inherited)",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				SDKROOT = iphoneos;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+			};
+			name = Debug;
+		};
+		B000000000000000000000B7 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				SDKROOT = iphoneos;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				VALIDATE_PRODUCT = YES;
+			};
+			name = Release;
+		};
+		B000000000000000000000B3 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_ASSET_PATHS = "";
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = PhotoCleaner/Info.plist;
+				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.dennispaul.PhotoCleaner;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		B000000000000000000000B4 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_ASSET_PATHS = "";
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = PhotoCleaner/Info.plist;
+				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.dennispaul.PhotoCleaner;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		B000000000000000000000B5 /* Build configuration list for PBXProject "PhotoCleaner" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				B000000000000000000000B6 /* Debug */,
+				B000000000000000000000B7 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		B000000000000000000000B2 /* Build configuration list for PBXNativeTarget "PhotoCleaner" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				B000000000000000000000B3 /* Debug */,
+				B000000000000000000000B4 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = A000000000000000000000A1 /* Project object */;
+}

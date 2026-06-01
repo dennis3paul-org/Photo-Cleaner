@@ -1,0 +1,55 @@
+default_platform(:ios)
+
+PROJECT = "PhotoCleaner.xcodeproj"
+SCHEME  = "PhotoCleaner"
+
+platform :ios do
+  desc "Build + upload to TestFlight"
+  lane :beta do
+    # In CI, create a temp keychain so codesign can find the imported
+    # certificate without needing the runner's login keychain.
+    setup_ci if ENV["CI"]
+
+    # Auto-bump build number on every CI run so TestFlight accepts each
+    # upload. We use the total git commit count — monotonic, no plist
+    # editing needed at dev time.
+    increment_build_number(
+      build_number: number_of_commits.to_s,
+      xcodeproj: PROJECT
+    )
+
+    # App Store Connect API key (Apple's modern auth — no 2FA dance).
+    # The .p8 contents are pasted into APP_STORE_CONNECT_KEY_CONTENT as a
+    # single-line value (Fastlane decodes either base64 or raw).
+    api_key = app_store_connect_api_key(
+      key_id: ENV["APP_STORE_CONNECT_KEY_ID"],
+      issuer_id: ENV["APP_STORE_CONNECT_ISSUER_ID"],
+      key_content: ENV["APP_STORE_CONNECT_KEY_CONTENT"],
+      is_key_content_base64: false,
+      in_house: false
+    )
+
+    # Build the .ipa. export_method=app-store generates an archive that's
+    # TestFlight-ready. xcargs forces the manual signing settings the CI
+    # cert + profile expect.
+    build_app(
+      project: PROJECT,
+      scheme: SCHEME,
+      configuration: "Release",
+      export_method: "app-store",
+      clean: true,
+      output_directory: "./build",
+      output_name: "PhotoCleaner.ipa",
+      xcargs: "-allowProvisioningUpdates DEVELOPMENT_TEAM=#{ENV['DEVELOPER_TEAM_ID']} CODE_SIGN_STYLE=Manual PROVISIONING_PROFILE_SPECIFIER='#{ENV['PROVISIONING_PROFILE_NAME']}' CODE_SIGN_IDENTITY='Apple Distribution'"
+    )
+
+    # Push to TestFlight. skip_waiting_for_build_processing=true returns
+    # right after upload — Apple's processing takes 5-20m but we don't
+    # need to block the CI run on it.
+    upload_to_testflight(
+      api_key: api_key,
+      skip_waiting_for_build_processing: true,
+      changelog: ENV["FASTLANE_CHANGELOG"] || "Build from CI"
+    )
+  end
+end
