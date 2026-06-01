@@ -52,7 +52,7 @@ jobs:
         run: sudo sntp -sS time.windows.com
 
       - name: Build IPA
-        run: bundle exec fastlane build_app
+        run: bundle exec fastlane build_photo_cleaner
 
       - name: Upload to TestFlight
         run: bundle exec fastlane release
