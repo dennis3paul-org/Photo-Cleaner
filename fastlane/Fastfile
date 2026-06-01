@@ -1,55 +1,168 @@
+# Photo Cleaner Fastfile
+# Mirrors the dennis3paul-org/Trio pattern: fastlane match for cert + profile
+# management against the org's Match-Secrets repo, App Store Connect API key
+# for upload, manual code-signing settings injection at build time.
+#
+# Inherits these org-level secrets automatically when this repo lives under
+# dennis3paul-org:
+#   TEAMID, GH_PAT, FASTLANE_KEY_ID, FASTLANE_ISSUER_ID, FASTLANE_KEY,
+#   MATCH_PASSWORD
+
 default_platform(:ios)
 
-PROJECT = "PhotoCleaner.xcodeproj"
-SCHEME  = "PhotoCleaner"
+BUNDLE_ID = "com.dennispaul.PhotoCleaner"
+PROJECT_PATH = "PhotoCleaner.xcodeproj"
+SCHEME = "PhotoCleaner"
+APP_TARGET = "PhotoCleaner"
+
+TEAMID                  = ENV["TEAMID"]
+GH_PAT                  = ENV["GH_PAT"]
+GITHUB_REPOSITORY_OWNER = ENV["GITHUB_REPOSITORY_OWNER"]
+FASTLANE_KEY_ID         = ENV["FASTLANE_KEY_ID"]
+FASTLANE_ISSUER_ID      = ENV["FASTLANE_ISSUER_ID"]
+FASTLANE_KEY            = ENV["FASTLANE_KEY"]
+ENV["FASTLANE_XCODEBUILD_SETTINGS_TIMEOUT"] = "120"
 
 platform :ios do
-  desc "Build + upload to TestFlight"
-  lane :beta do
-    # In CI, create a temp keychain so codesign can find the imported
-    # certificate without needing the runner's login keychain.
+
+  desc "Build PhotoCleaner"
+  lane :build_app do
     setup_ci if ENV["CI"]
 
-    # Auto-bump build number on every CI run so TestFlight accepts each
-    # upload. We use the total git commit count — monotonic, no plist
-    # editing needed at dev time.
-    increment_build_number(
-      build_number: number_of_commits.to_s,
-      xcodeproj: PROJECT
+    # Inject the team ID so the project.pbxproj's stored team doesn't
+    # have to match the runner's team — same trick Trio uses to let
+    # forks build with any developer's account.
+    update_project_team(
+      path: PROJECT_PATH,
+      teamid: "#{TEAMID}"
     )
 
-    # App Store Connect API key (Apple's modern auth — no 2FA dance).
-    # The .p8 contents are pasted into APP_STORE_CONNECT_KEY_CONTENT as a
-    # single-line value (Fastlane decodes either base64 or raw).
     api_key = app_store_connect_api_key(
-      key_id: ENV["APP_STORE_CONNECT_KEY_ID"],
-      issuer_id: ENV["APP_STORE_CONNECT_ISSUER_ID"],
-      key_content: ENV["APP_STORE_CONNECT_KEY_CONTENT"],
-      is_key_content_base64: false,
-      in_house: false
+      key_id: "#{FASTLANE_KEY_ID}",
+      issuer_id: "#{FASTLANE_ISSUER_ID}",
+      key_content: "#{FASTLANE_KEY}"
     )
 
-    # Build the .ipa. export_method=app-store generates an archive that's
-    # TestFlight-ready. xcargs forces the manual signing settings the CI
-    # cert + profile expect.
-    build_app(
-      project: PROJECT,
-      scheme: SCHEME,
-      configuration: "Release",
+    # Bump build number above whatever TestFlight currently has. Avoids
+    # the "build number already used" rejection.
+    previous_build_number = latest_testflight_build_number(
+      app_identifier: BUNDLE_ID,
+      api_key: api_key
+    )
+    current_build_number = previous_build_number + 1
+    increment_build_number(
+      xcodeproj: PROJECT_PATH,
+      build_number: current_build_number
+    )
+
+    # Pull the distribution cert + App Store provisioning profile from
+    # the org's Match-Secrets repo. Authenticates via the GH_PAT.
+    match(
+      type: "appstore",
+      git_basic_authorization: Base64.strict_encode64("#{GITHUB_REPOSITORY_OWNER}:#{GH_PAT}"),
+      app_identifier: [BUNDLE_ID]
+    )
+
+    mapping = Actions.lane_context[SharedValues::MATCH_PROVISIONING_PROFILE_MAPPING]
+
+    # Wire the match-installed profile into the project's signing
+    # settings for the single PhotoCleaner target.
+    update_code_signing_settings(
+      path: PROJECT_PATH,
+      profile_name: mapping[BUNDLE_ID],
+      code_sign_identity: "iPhone Distribution",
+      targets: [APP_TARGET]
+    )
+
+    gym(
       export_method: "app-store",
-      clean: true,
-      output_directory: "./build",
+      scheme: SCHEME,
       output_name: "PhotoCleaner.ipa",
-      xcargs: "-allowProvisioningUpdates DEVELOPMENT_TEAM=#{ENV['DEVELOPER_TEAM_ID']} CODE_SIGN_STYLE=Manual PROVISIONING_PROFILE_SPECIFIER='#{ENV['PROVISIONING_PROFILE_NAME']}' CODE_SIGN_IDENTITY='Apple Distribution'"
+      configuration: "Release",
+      destination: "generic/platform=iOS",
+      buildlog_path: "buildlog"
     )
 
-    # Push to TestFlight. skip_waiting_for_build_processing=true returns
-    # right after upload — Apple's processing takes 5-20m but we don't
-    # need to block the CI run on it.
+    copy_artifacts(
+      target_path: "artifacts",
+      artifacts: ["*.mobileprovision", "*.ipa", "*.dSYM.zip"]
+    )
+  end
+
+  desc "Push the latest .ipa to TestFlight"
+  lane :release do
+    api_key = app_store_connect_api_key(
+      key_id: "#{FASTLANE_KEY_ID}",
+      issuer_id: "#{FASTLANE_ISSUER_ID}",
+      key_content: "#{FASTLANE_KEY}"
+    )
+
     upload_to_testflight(
       api_key: api_key,
+      skip_submission: false,
+      ipa: "PhotoCleaner.ipa",
       skip_waiting_for_build_processing: true,
-      changelog: ENV["FASTLANE_CHANGELOG"] || "Build from CI"
+      changelog: git_branch + " " + last_git_commit[:abbreviated_commit_hash]
+    )
+  end
+
+  desc "Register the bundle ID on App Store Connect (one-time setup)"
+  lane :identifiers do
+    setup_ci if ENV["CI"]
+    ENV["MATCH_READONLY"] = false.to_s
+
+    app_store_connect_api_key(
+      key_id: "#{FASTLANE_KEY_ID}",
+      issuer_id: "#{FASTLANE_ISSUER_ID}",
+      key_content: "#{FASTLANE_KEY}"
+    )
+
+    # PhotoKit access is handled by Info.plist's NSPhotoLibraryUsageDescription;
+    # no explicit Bundle ID capabilities required.
+    Spaceship::ConnectAPI::BundleId.find(BUNDLE_ID) || Spaceship::ConnectAPI::BundleId.create(
+      name: "Photo Cleaner",
+      identifier: BUNDLE_ID,
+      platform: "IOS"
+    )
+  end
+
+  desc "Provision the App Store distribution profile via match (one-time)"
+  lane :certs do
+    setup_ci if ENV["CI"]
+    ENV["MATCH_READONLY"] = false.to_s
+
+    app_store_connect_api_key(
+      key_id: "#{FASTLANE_KEY_ID}",
+      issuer_id: "#{FASTLANE_ISSUER_ID}",
+      key_content: "#{FASTLANE_KEY}"
+    )
+
+    match(
+      type: "appstore",
+      force: false,
+      verbose: true,
+      git_basic_authorization: Base64.strict_encode64("#{GITHUB_REPOSITORY_OWNER}:#{GH_PAT}"),
+      app_identifier: [BUNDLE_ID]
+    )
+  end
+
+  desc "Sanity-check that all required secrets are wired correctly"
+  lane :validate_secrets do
+    setup_ci if ENV["CI"]
+    ENV["MATCH_READONLY"] = true.to_s
+
+    app_store_connect_api_key(
+      key_id: "#{FASTLANE_KEY_ID}",
+      issuer_id: "#{FASTLANE_ISSUER_ID}",
+      key_content: "#{FASTLANE_KEY}"
+    )
+
+    Spaceship::ConnectAPI::BundleId.find(BUNDLE_ID)
+
+    match(
+      type: "appstore",
+      git_basic_authorization: Base64.strict_encode64("#{GITHUB_REPOSITORY_OWNER}:#{GH_PAT}"),
+      app_identifier: []
     )
   end
 end

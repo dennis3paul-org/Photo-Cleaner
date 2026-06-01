@@ -14,111 +14,84 @@ To run on **your own device**:
 3. Pick your iPhone as the run destination, ⌘R
 4. On your phone: Settings → General → VPN & Device Management → trust the dev cert
 
-## Deploy to TestFlight via GitHub Actions
+## Deploy to TestFlight (GitHub Actions + Fastlane Match)
 
-The repo includes `fastlane/Fastfile` + `.github/workflows/testflight.yml` for fully automated TestFlight builds on every push to `main`. One-time setup below.
+Mirrors the dennis3paul-org/Trio pattern: every push to `main` triggers a GitHub Actions run that builds the IPA and pushes it to TestFlight. Certificates and provisioning profiles live in the shared `dennis3paul-org/Match-Secrets` repo and are fetched at build time via `fastlane match`.
 
-### 1. App Store Connect app record
+### One-time setup
 
-1. Sign in to [App Store Connect](https://appstoreconnect.apple.com)
-2. **My Apps → ➕ New App**
-3. Bundle ID: `com.dennispaul.PhotoCleaner` (must match the Xcode project)
-4. Pick a name + primary language. Default everything else.
+1. **Push this repo to the `dennis3paul-org` GitHub organization**:
+   ```bash
+   git remote add origin https://github.com/dennis3paul-org/photo-cleaner.git
+   git push -u origin main
+   ```
+   Org-level secrets (`TEAMID`, `GH_PAT`, `FASTLANE_KEY_ID`, `FASTLANE_ISSUER_ID`, `FASTLANE_KEY`, `MATCH_PASSWORD`) inherit automatically.
 
-### 2. App Store Connect API key
+2. **Create the App Store Connect app record** (if you haven't already):
+   - [App Store Connect](https://appstoreconnect.apple.com) → My Apps → ➕ New App
+   - Bundle ID: `com.dennispaul.PhotoCleaner`
+   - Name + primary language (default everything else)
 
-This is how the CI uploads builds without your Apple ID password / 2FA.
+3. **Run the "Provision Certificates" workflow once**:
+   - GitHub → Actions tab → "Provision Certificates" → "Run workflow"
+   - This registers the bundle ID + adds the App Store profile for `com.dennispaul.PhotoCleaner` into Match-Secrets
 
-1. **Users and Access → Integrations → App Store Connect API**
-2. **Generate API Key** with **App Manager** access
-3. Copy the **Issuer ID** (top of the page)
-4. Copy the **Key ID** (from the new key's row)
-5. Download the `.p8` file — **you can only download it once**
+Once that workflow succeeds, the regular **Build PhotoCleaner** workflow takes over for every push.
 
-### 3. Code signing certificate + provisioning profile
+### Ongoing builds
 
-The easiest path: do one local archive in Xcode so it auto-creates these, then export them.
+- **On push to `main`**: `Build PhotoCleaner` triggers automatically → builds the IPA → uploads to TestFlight (~10-15 min compile/sign/upload + another 10-20 min for Apple's processing)
+- **Manual trigger**: Actions tab → "Build PhotoCleaner" → "Run workflow"
 
-1. In Xcode: **Signing & Capabilities → Team → select yours**, Signing Style: **Manual**
-2. **Product → Archive** (you can cancel the upload — we just want the cert + profile created)
-3. **Distribution Certificate (.p12):**
-   - Open Keychain Access (macOS app)
-   - Login keychain → "My Certificates" → find **"Apple Distribution: Your Name (TEAMID)"**
-   - Right-click → **Export** → choose `.p12` format → set a strong password (you'll need it later)
-4. **Provisioning Profile (.mobileprovision):**
-   - Open `~/Library/MobileDevice/Provisioning Profiles/` in Finder
-   - Find the most recently-modified `.mobileprovision` for your app — it's named with a UUID
-   - Note the **profile name** (you'll need it). To see the name, double-click the file → "Profile Name" in the dialog. Or run:
-     ```bash
-     security cms -D -i ~/Library/MobileDevice/Provisioning\ Profiles/<UUID>.mobileprovision | plutil -extract Name xml1 -o - -
-     ```
+The workflow:
+1. Pulls cert + profile from Match-Secrets via `fastlane match`
+2. Bumps the build number to `latest_testflight + 1`
+3. Builds for `app-store` export
+4. Uploads via App Store Connect API key (no Apple ID password / 2FA dance)
 
-### 4. GitHub repository + Secrets
-
-Create the GitHub repo:
-```bash
-# From inside this directory, after `git init`:
-gh repo create photo-cleaner --private --source=. --remote=origin
-git push -u origin main
-```
-(Or create the repo via the web UI and `git remote add origin …`.)
-
-Then **Settings → Secrets and variables → Actions → New repository secret**. Add each:
-
-| Secret name | What it is | How to get it |
-|---|---|---|
-| `APP_STORE_CONNECT_KEY_ID` | The key's ID (~10 chars) | App Store Connect → API key row |
-| `APP_STORE_CONNECT_ISSUER_ID` | The Issuer ID (UUID format) | App Store Connect → API keys page header |
-| `APP_STORE_CONNECT_KEY_CONTENT` | The `.p8` file contents (full text including `-----BEGIN PRIVATE KEY-----`) | `cat AuthKey_XXX.p8 \| pbcopy` |
-| `DEVELOPER_TEAM_ID` | Your 10-char Team ID | App Store Connect → Membership |
-| `BUILD_CERTIFICATE_BASE64` | The `.p12` file, base64-encoded | `base64 -i Certificates.p12 \| pbcopy` |
-| `P12_PASSWORD` | Password you set when exporting the .p12 | (you chose this) |
-| `BUILD_PROVISION_PROFILE_BASE64` | The `.mobileprovision`, base64-encoded | `base64 -i profile.mobileprovision \| pbcopy` |
-| `PROVISIONING_PROFILE_NAME` | The profile's "Name" field | from step 3.4 above |
-| `KEYCHAIN_PASSWORD` | Any string (ephemeral temp-keychain password) | e.g. `openssl rand -base64 24` |
-
-### 5. First push
+### Lanes (for local invocation)
 
 ```bash
-git add .
-git commit -m "Initial commit"
-git push -u origin main
+# Sanity-check that all env vars + match repo work end-to-end:
+bundle exec fastlane validate_secrets
+
+# Manually provision certs (CI does this automatically via the workflow):
+bundle exec fastlane certs
+
+# Build the IPA locally:
+bundle exec fastlane build_app
+
+# Push the last-built IPA to TestFlight:
+bundle exec fastlane release
 ```
 
-The `TestFlight` workflow auto-triggers on push to `main`. Watch it run under the **Actions** tab. First build typically takes ~10-15 minutes; TestFlight processing on Apple's side another ~10-20 minutes after that.
-
-### Build locally (without TestFlight upload)
-
-```bash
-bundle install
-DEVELOPER_TEAM_ID=YOURTEAM PROVISIONING_PROFILE_NAME="Your Profile Name" \
-  bundle exec fastlane gym \
-    --project PhotoCleaner.xcodeproj --scheme PhotoCleaner \
-    --export_method app-store --output_directory build
-```
-
-Or just keep using Xcode's `⌘B` / `⌘R`.
+For local runs you'd need the same env vars set (TEAMID, GH_PAT, FASTLANE_KEY_ID, FASTLANE_ISSUER_ID, FASTLANE_KEY, MATCH_PASSWORD, GITHUB_REPOSITORY_OWNER=dennis3paul-org). Easier to let CI do it.
 
 ## Project structure
 
 ```
-PhotoCleaner/                 # Swift sources
-├── PhotoCleanerApp.swift      # @main + WindowGroup
-├── AppModel.swift             # State machine: idle → pickBatch → triage → cleanup
-├── IdleView.swift             # Library landing card
-├── PickBatchView.swift        # Local gallery + Random + Videos-only
-├── TriageView.swift           # Local swipe UI
-├── LocalCleanupView.swift     # PHAssetChangeRequest.deleteAssets
-├── GooglePhotosView.swift     # GP WebView container + Random pill
-├── GooglePhotosWebView.swift  # WKWebView + JS bundle for GP RPCs
-├── GPSwipeView.swift          # GP swipe UI
-├── GPCleanupView.swift        # GP XwAOJf bulk delete
-├── WebVideoPlayer.swift       # HTML5 <video> in WKWebView with cookie sharing
-├── VideoFilePrefetcher.swift  # URLSession → tmp file for instant playback
-├── PCVideoSchemeHandler.swift # pcvideo:// scheme for local files
-├── PHAssetImage.swift         # PhotoKit thumbnail loader
+PhotoCleaner/                  # Swift sources
+├── PhotoCleanerApp.swift       # @main + WindowGroup
+├── AppModel.swift              # State machine: idle → pickBatch → triage → cleanup
+├── IdleView.swift              # Library landing card
+├── PickBatchView.swift         # Local gallery + Random + Videos-only
+├── TriageView.swift            # Local swipe UI
+├── LocalCleanupView.swift      # PHAssetChangeRequest.deleteAssets
+├── GooglePhotosView.swift      # GP WebView container + Random pill
+├── GooglePhotosWebView.swift   # WKWebView + JS bundle for GP RPCs
+├── GPSwipeView.swift           # GP swipe UI
+├── GPCleanupView.swift         # GP XwAOJf bulk delete
+├── WebVideoPlayer.swift        # HTML5 <video> in WKWebView with cookie sharing
+├── VideoFilePrefetcher.swift   # URLSession → tmp file for instant playback
+├── PCVideoSchemeHandler.swift  # pcvideo:// scheme for local files
+├── PHAssetImage.swift          # PhotoKit thumbnail loader
 └── …
 
-fastlane/                      # Fastfile + Appfile (TestFlight build lane)
-.github/workflows/             # CI: build + upload on push to main
+fastlane/
+├── Fastfile                    # build_app, release, certs, identifiers, validate_secrets lanes
+└── Matchfile                   # Points at dennis3paul-org/Match-Secrets
+
+.github/workflows/
+├── build.yml                   # Push to main → build + TestFlight
+└── provision_certs.yml         # Manual: register bundle ID + populate Match-Secrets
 ```

@@ -1,0 +1,68 @@
+name: Build PhotoCleaner
+
+# Triggers on every push to main, plus a manual run-now button in the
+# Actions tab. First-time setup: run the "Provision Certificates"
+# workflow once before this one — it populates Match-Secrets with the
+# distribution cert + App Store profile for com.dennispaul.PhotoCleaner.
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+
+env:
+  TEAMID:             ${{ secrets.TEAMID }}
+  GH_PAT:             ${{ secrets.GH_PAT }}
+  FASTLANE_KEY_ID:    ${{ secrets.FASTLANE_KEY_ID }}
+  FASTLANE_ISSUER_ID: ${{ secrets.FASTLANE_ISSUER_ID }}
+  FASTLANE_KEY:       ${{ secrets.FASTLANE_KEY }}
+  MATCH_PASSWORD:     ${{ secrets.MATCH_PASSWORD }}
+
+jobs:
+  build:
+    name: Build + TestFlight
+    runs-on: macos-26
+    timeout-minutes: 60
+    permissions:
+      contents: write
+    steps:
+      - name: Select Xcode 26.2
+        run: sudo xcode-select --switch /Applications/Xcode_26.2.app/Contents/Developer
+
+      - name: Checkout
+        uses: actions/checkout@v5
+        with:
+          token: ${{ secrets.GH_PAT }}
+
+      # Match prints a huge ASCII table by default that can leak cert
+      # details in logs — same patch Trio uses to silence it.
+      - name: Patch fastlane match to skip table output
+        run: |
+          TABLE_PRINTER_PATH=$(ruby -e 'puts Gem::Specification.find_by_name("fastlane").gem_dir')/match/lib/match/table_printer.rb
+          if [ -f "$TABLE_PRINTER_PATH" ]; then
+            sed -i "" "/puts(Terminal::Table.new(params))/d" "$TABLE_PRINTER_PATH"
+          fi
+
+      - name: Install dependencies
+        run: bundle install
+
+      # Apple's signing servers reject requests if the runner's clock
+      # drifts. macos-26 runners have been seen with seconds of drift.
+      - name: Sync clock
+        run: sudo sntp -sS time.windows.com
+
+      - name: Build IPA
+        run: bundle exec fastlane build_app
+
+      - name: Upload to TestFlight
+        run: bundle exec fastlane release
+
+      - name: Upload artifacts
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: PhotoCleaner-build
+          path: |
+            artifacts
+            buildlog
+          if-no-files-found: warn

@@ -1,0 +1,50 @@
+name: Provision Certificates
+
+# One-time setup workflow. Run this MANUALLY (Actions tab → Run workflow)
+# the first time you push this repo, AND any time the org's distribution
+# cert is rotated. It:
+#   1. Creates the bundle ID on App Store Connect if it doesn't exist
+#   2. Provisions an App Store distribution profile for com.dennispaul.PhotoCleaner
+#   3. Commits the new profile + cert reference into Match-Secrets
+#
+# After it runs once successfully, the regular Build workflow can take
+# over for every push.
+
+on:
+  workflow_dispatch:
+
+env:
+  TEAMID:             ${{ secrets.TEAMID }}
+  GH_PAT:             ${{ secrets.GH_PAT }}
+  GH_TOKEN:           ${{ secrets.GH_PAT }}
+  FASTLANE_KEY_ID:    ${{ secrets.FASTLANE_KEY_ID }}
+  FASTLANE_ISSUER_ID: ${{ secrets.FASTLANE_ISSUER_ID }}
+  FASTLANE_KEY:       ${{ secrets.FASTLANE_KEY }}
+  MATCH_PASSWORD:     ${{ secrets.MATCH_PASSWORD }}
+
+jobs:
+  provision:
+    runs-on: macos-26
+    timeout-minutes: 30
+    steps:
+      - name: Select Xcode 26.2
+        run: sudo xcode-select --switch /Applications/Xcode_26.2.app/Contents/Developer
+
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Patch fastlane match to skip table output
+        run: |
+          TABLE_PRINTER_PATH=$(ruby -e 'puts Gem::Specification.find_by_name("fastlane").gem_dir')/match/lib/match/table_printer.rb
+          if [ -f "$TABLE_PRINTER_PATH" ]; then
+            sed -i "" "/puts(Terminal::Table.new(params))/d" "$TABLE_PRINTER_PATH"
+          fi
+
+      - name: Install dependencies
+        run: bundle install
+
+      - name: Register bundle ID
+        run: bundle exec fastlane identifiers
+
+      - name: Provision certificate + App Store profile
+        run: bundle exec fastlane certs
