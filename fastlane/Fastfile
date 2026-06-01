@@ -1,10 +1,9 @@
 # Photo Cleaner Fastfile
-# Mirrors the dennis3paul-org/Trio pattern: fastlane match for cert + profile
-# management against the org's Match-Secrets repo, App Store Connect API key
-# for upload, manual code-signing settings injection at build time.
+# Pattern: fastlane match for cert + profile management against a private
+# Match-Secrets repo, App Store Connect API key for upload, manual
+# code-signing settings injection at build time.
 #
-# Inherits these org-level secrets automatically when this repo lives under
-# dennis3paul-org:
+# Required env vars (set as org-level or repo-level secrets):
 #   TEAMID, GH_PAT, FASTLANE_KEY_ID, FASTLANE_ISSUER_ID, FASTLANE_KEY,
 #   MATCH_PASSWORD
 
@@ -23,11 +22,10 @@ FASTLANE_ISSUER_ID      = ENV["FASTLANE_ISSUER_ID"]
 FASTLANE_KEY            = ENV["FASTLANE_KEY"]
 ENV["FASTLANE_XCODEBUILD_SETTINGS_TIMEOUT"] = "120"
 
-# Auto-detect whether FASTLANE_KEY is raw PEM (-----BEGIN PRIVATE KEY-----
-# at the top) or just the base64 body. Trio's pattern always passes raw
-# PEM, but the user's org-level secret was stored base64-encoded for the
-# Photo Cleaner setup. This helper returns the kwargs that match either
-# format so the same Fastfile works for both.
+# Auto-detect whether FASTLANE_KEY is raw PEM (starts with
+# "-----BEGIN PRIVATE KEY-----") or a base64-encoded body. Different setups
+# store the .p8 contents either way; this helper returns the kwargs that
+# match either format so the same Fastfile works for both.
 def asc_api_key_kwargs
   raw = ENV["FASTLANE_KEY"].to_s
   is_base64 = !raw.lstrip.start_with?("-----BEGIN")
