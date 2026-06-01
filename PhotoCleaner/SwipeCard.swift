@@ -215,6 +215,12 @@ struct SwipeCard<ImageContent: View>: View {
     /// snap.
     private func fly(to decision: SwipeDecision, direction: CGFloat) {
         isFlying = true
+        // WebAudio-style synthesized tone — different pitch per decision,
+        // ported from the Chrome extension's playSwipeKeep / playSwipeDelete.
+        switch decision {
+        case .keep:   SoundEffects.playSwipeKeep()
+        case .delete: SoundEffects.playSwipeDelete()
+        }
         // Pick a curve that starts fast and decelerates — gives the
         // "thrown" feel rather than "snapped".
         withAnimation(.timingCurve(0.20, 0.60, 0.30, 1.0, duration: 0.32)) {

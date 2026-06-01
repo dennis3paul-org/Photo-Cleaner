@@ -28,6 +28,7 @@
 		E000000000000000000000B5 /* GooglePhotosLogo.swift in Sources */ = {isa = PBXBuildFile; fileRef = D000000000000000000000B5 /* GooglePhotosLogo.swift */; };
 		E000000000000000000000B6 /* VideoFilePrefetcher.swift in Sources */ = {isa = PBXBuildFile; fileRef = D000000000000000000000B6 /* VideoFilePrefetcher.swift */; };
 		E000000000000000000000B7 /* PCVideoSchemeHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = D000000000000000000000B7 /* PCVideoSchemeHandler.swift */; };
+		E000000000000000000000B8 /* SoundEffects.swift in Sources */ = {isa = PBXBuildFile; fileRef = D000000000000000000000B8 /* SoundEffects.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -54,6 +55,7 @@
 		D000000000000000000000B5 /* GooglePhotosLogo.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GooglePhotosLogo.swift; sourceTree = "<group>"; };
 		D000000000000000000000B6 /* VideoFilePrefetcher.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VideoFilePrefetcher.swift; sourceTree = "<group>"; };
 		D000000000000000000000B7 /* PCVideoSchemeHandler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PCVideoSchemeHandler.swift; sourceTree = "<group>"; };
+		D000000000000000000000B8 /* SoundEffects.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SoundEffects.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -106,6 +108,7 @@
 				D000000000000000000000B5 /* GooglePhotosLogo.swift */,
 				D000000000000000000000B6 /* VideoFilePrefetcher.swift */,
 				D000000000000000000000B7 /* PCVideoSchemeHandler.swift */,
+				D000000000000000000000B8 /* SoundEffects.swift */,
 				D000000000000000000000A7 /* Assets.xcassets */,
 				D000000000000000000000A6 /* Info.plist */,
 			);
@@ -201,6 +204,7 @@
 				E000000000000000000000B5 /* GooglePhotosLogo.swift in Sources */,
 				E000000000000000000000B6 /* VideoFilePrefetcher.swift in Sources */,
 				E000000000000000000000B7 /* PCVideoSchemeHandler.swift in Sources */,
+				E000000000000000000000B8 /* SoundEffects.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

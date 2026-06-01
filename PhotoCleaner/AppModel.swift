@@ -82,6 +82,7 @@ final class AppModel: ObservableObject {
         case .keep:
             localKeepCount = max(localKeepCount - 1, 0)
         }
+        SoundEffects.playUndo()
         withAnimation(.spring(duration: 0.25)) {
             localCursor = max(localCursor - 1, 0)
         }
@@ -133,6 +134,7 @@ final class AppModel: ObservableObject {
         case .keep:
             gpKeepCount = max(gpKeepCount - 1, 0)
         }
+        SoundEffects.playUndo()
         withAnimation(.spring(duration: 0.25)) {
             gpCursor = max(gpCursor - 1, 0)
         }
