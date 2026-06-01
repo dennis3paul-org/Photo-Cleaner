@@ -240,18 +240,13 @@ struct GPSwipeView: View {
                             // slight edge of playback isn't distracting.
                             if let videoURL = primaryVideoURL(for: photo) {
                                 ZStack {
-                                    AsyncImage(url: enlargedURL(for: photo)) { phase in
-                                        switch phase {
-                                        case .success(let image):
+                                    RetryingAsyncImage(
+                                        url: enlargedURL(for: photo),
+                                        content: { image in
                                             image.resizable().aspectRatio(contentMode: .fit)
-                                        case .empty:
-                                            Color.clear
-                                        case .failure:
-                                            Color.clear
-                                        @unknown default:
-                                            Color.clear
-                                        }
-                                    }
+                                        },
+                                        placeholder: { Color.clear }
+                                    )
                                     WebVideoPlayer(
                                         videoURL: videoURL,
                                         posterURL: nil  // backdrop handles it
@@ -269,18 +264,15 @@ struct GPSwipeView: View {
                                     .allowsHitTesting(false)
                                 }
                             } else {
-                                AsyncImage(url: enlargedURL(for: photo)) { phase in
-                                    switch phase {
-                                    case .success(let image):
+                                RetryingAsyncImage(
+                                    url: enlargedURL(for: photo),
+                                    content: { image in
                                         image.resizable().aspectRatio(contentMode: .fit)
-                                    case .empty:
-                                        placeholder(systemName: "photo")
-                                    case .failure:
-                                        placeholder(systemName: "exclamationmark.triangle")
-                                    @unknown default:
+                                    },
+                                    placeholder: {
                                         placeholder(systemName: "photo")
                                     }
-                                }
+                                )
                             }
                         }
                         .id(photo.id)
