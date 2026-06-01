@@ -256,7 +256,7 @@ struct GPCleanupView: View {
         if nativeError == nil {
             durationMs = Int(Date().timeIntervalSince(startTime) * 1000)
             phase = "done"
-            SoundEffects.playCleanupDone()
+            SoundEffects.playCleanupTrash()
             return
         }
 
@@ -288,10 +288,10 @@ struct GPCleanupView: View {
                 lastError = "XwAOJf: \(final.lastError)"
             }
 
-            // C-E-G chime if at least one photo actually trashed —
-            // matches the local cleanup flow + Chrome extension.
+            // Mac-trash crumple if at least one photo actually
+            // trashed — matches the local cleanup flow.
             if result.succeeded > 0 {
-                SoundEffects.playCleanupDone()
+                SoundEffects.playCleanupTrash()
             }
 
             // Note: we intentionally do NOT reload the GP WebView after

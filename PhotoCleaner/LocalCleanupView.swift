@@ -185,10 +185,10 @@ struct LocalCleanupView: View {
             succeeded = assets.count
             bytesFreed = totalBytes
             lastError = nil
-            // Triumphant C-E-G chime — matches Chrome extension's
-            // playCleanupDone(). Fires only on actual success so a
-            // user-cancelled iOS confirmation dialog stays silent.
-            SoundEffects.playCleanupDone()
+            // Mac-style empty-trash crumple. Fires only on actual
+            // success so a user-cancelled iOS confirmation dialog
+            // stays silent.
+            SoundEffects.playCleanupTrash()
         } catch {
             lastError = error.localizedDescription
         }

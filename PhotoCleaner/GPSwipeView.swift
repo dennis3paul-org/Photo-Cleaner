@@ -256,6 +256,17 @@ struct GPSwipeView: View {
                                         videoURL: videoURL,
                                         posterURL: nil  // backdrop handles it
                                     )
+                                    // Hit-testing disabled: every touch
+                                    // (drags, taps, long-presses) skips
+                                    // the WKWebView and goes straight to
+                                    // the SwipeCard's DragGesture, so GP
+                                    // cards feel as snappy as local
+                                    // PHAsset cards. Tradeoff: no tap-to-
+                                    // retry on the video element, but
+                                    // autoplay reliably starts within
+                                    // ~500ms now so that fallback is
+                                    // effectively unused anyway.
+                                    .allowsHitTesting(false)
                                 }
                             } else {
                                 AsyncImage(url: enlargedURL(for: photo)) { phase in

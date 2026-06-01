@@ -136,7 +136,14 @@ struct SwipeCard<ImageContent: View>: View {
         .offset(y: yOffsetForStack)
         .offset(dragOffset)
         .rotationEffect(.degrees(rotationAngle))
-        .gesture(stackOffset == 0 ? dragGesture : nil)
+        // highPriorityGesture beats out any UIKit/WKWebView gestures
+        // that the card's content might add (the GP card embeds a
+        // WKWebView for video playback, and its internal tap/long-press
+        // recognizers were stealing the start of the drag — making the
+        // GP cards feel laggier than local PHAsset cards). With
+        // highPriorityGesture, SwiftUI's DragGesture consumes the
+        // touches before any child UIView gesture sees them.
+        .highPriorityGesture(stackOffset == 0 ? dragGesture : nil)
         .allowsHitTesting(stackOffset == 0 && !isFlying)
         .onChange(of: flyCommand) { _, newValue in
             guard stackOffset == 0, let newValue, !isFlying else { return }

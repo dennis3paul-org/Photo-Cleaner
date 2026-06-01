@@ -43,6 +43,19 @@ struct GooglePhotosView: View {
             }
             .ignoresSafeArea(edges: .bottom)
 
+            // Full-screen loading overlay during random pick. The
+            // EzkLib date sampler doesn't scroll the WebView itself,
+            // but rJ0tlb misses occasionally force a `webView.reload()`
+            // to recapture the library date bounds — that reload is
+            // what the user was seeing as "scrolling through a bunch
+            // of stuff" before the triage view appears. Covering the
+            // WebView with an opaque sheet keeps the transition clean
+            // regardless of what happens in the background.
+            if isRandomLoading {
+                randomLoadingOverlay
+                    .transition(.opacity)
+            }
+
             // Overlays
             if appModel.phase == .googleSwipe {
                 GPSwipeView(prefetchAction: {
@@ -77,6 +90,7 @@ struct GooglePhotosView: View {
         }
         .animation(.easeInOut(duration: 0.2), value: appModel.phase)
         .animation(.easeInOut(duration: 0.2), value: gpSelectedCount > 0)
+        .animation(.easeInOut(duration: 0.15), value: isRandomLoading)
         .task {
             // Sync state from the (possibly reused) WebView so the toolbar
             // immediately shows "Reload" instead of flashing "Sign in" when
@@ -141,6 +155,28 @@ struct GooglePhotosView: View {
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 10)
+    }
+
+    // MARK: Random loading overlay
+
+    /// Full-screen opaque overlay shown while we're building the random
+    /// batch. Hides any visible scrolling / reloading happening behind
+    /// it (rJ0tlb refresh, EzkLib RPC fan-out) so the experience is just
+    /// "tap → loading → triage".
+    private var randomLoadingOverlay: some View {
+        ZStack {
+            Color(.systemBackground)
+                .ignoresSafeArea()
+            VStack(spacing: 16) {
+                ProgressView()
+                    .controlSize(.large)
+                Text("Building random batch…")
+                    .font(.headline)
+                Text("Sampling across your library")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+            }
+        }
     }
 
     // MARK: Bottom bar

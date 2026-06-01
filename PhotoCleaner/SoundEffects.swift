@@ -40,6 +40,8 @@ enum SoundEffects {
     }
 
     /// C-E-G triangle chime — cleanup completed successfully.
+    /// Kept around as a fallback if `playCleanupTrash()` is ever
+    /// disabled, but not currently used.
     static func playCleanupDone() {
         // Notes: (frequency Hz, duration ms, start delay s).
         let notes: [(Double, Int, Double)] = [
@@ -52,6 +54,16 @@ enum SoundEffects {
                 playTone(frequency: freq, durationMs: dur, waveform: .triangle, peak: 0.25)
             }
         }
+    }
+
+    /// Mac "empty trash" style crumple — a low bass thump followed by a
+    /// short burst of noise pushed through a descending lowpass sweep.
+    /// Mimics the spectral shape of paper crumpling into a bin; not
+    /// pixel-identical to macOS but evokes the same feeling.
+    static func playCleanupTrash() {
+        setupIfNeeded()
+        guard isStarted, let buffer = renderTrashCrumple() else { return }
+        play(buffer: buffer)
     }
 
     // MARK: - Engine setup (lazy)
@@ -105,10 +117,14 @@ enum SoundEffects {
                 peak: peak
               )
         else { return }
+        play(buffer: buffer)
+    }
 
-        // Each play gets its own player node so concurrent rapid swipes
-        // overlap cleanly instead of clipping each other. Detached in the
-        // completion callback so we don't leak.
+    /// Schedule a one-shot buffer through a fresh player node. Each play
+    /// gets its own player so concurrent rapid swipes overlap cleanly
+    /// instead of clipping each other; the node is detached in the
+    /// completion callback so we don't leak.
+    private static func play(buffer: AVAudioPCMBuffer) {
         let player = AVAudioPlayerNode()
         engine.attach(player)
         engine.connect(player, to: mixer, format: buffer.format)
@@ -179,6 +195,75 @@ enum SoundEffects {
             }
 
             channel[i] = Float(raw * envelope) * peak
+        }
+        return buffer
+    }
+
+    /// Synthesize a "ka-thunk + crumple" buffer that evokes the macOS
+    /// empty-trash sound. Three layered components, all mixed mono:
+    ///
+    ///   1. **Bass thump** (0–60ms): a fast-decaying 90 Hz tone — the
+    ///      "thunk" you hear as the bag drops into the bin.
+    ///   2. **Filtered noise** (0–400ms): white noise pushed through a
+    ///      one-pole IIR lowpass whose cutoff descends over time, so the
+    ///      texture gets darker as it decays — same spectral shape as
+    ///      paper crumpling, where high-frequency content dies off
+    ///      faster than the low rumble.
+    ///   3. **Exponential envelope** over the whole thing so the tail
+    ///      fades naturally.
+    ///
+    /// Total duration ~500ms. Not a sampled copy of Apple's actual sound,
+    /// just a same-shape synthesis.
+    private static func renderTrashCrumple() -> AVAudioPCMBuffer? {
+        let sampleRate: Double = 44_100
+        let durationMs = 500
+        let frameCount = AVAudioFrameCount(sampleRate * Double(durationMs) / 1000.0)
+        guard let format = AVAudioFormat(standardFormatWithSampleRate: sampleRate, channels: 1),
+              let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: frameCount)
+        else { return nil }
+        buffer.frameLength = frameCount
+
+        let channel = buffer.floatChannelData![0]
+        let totalFrames = Int(frameCount)
+        let twoPi = 2.0 * Double.pi
+
+        // Lowpass filter state — one-pole IIR. cutoff is the per-sample
+        // smoothing coefficient (0 = full lowpass, 1 = passthrough);
+        // we slide it from ~0.6 (bright crumple) down to ~0.05 (dark
+        // rumble) over the duration of the buffer.
+        var lpState: Double = 0
+        // Pre-warm the noise generator with a fixed seed-ish offset so
+        // multiple plays sound similar but not identical. Swift's
+        // Double.random uses the system RNG, which is fine here.
+
+        let attackFrames = Int(sampleRate * 0.003)  // 3ms attack
+        for i in 0..<totalFrames {
+            let t = Double(i) / sampleRate
+            let progress = Double(i) / Double(totalFrames)  // 0…1
+
+            // -- 1. Bass thump (90 Hz sine, ~60ms decay) ---------------
+            var bass = 0.0
+            if t < 0.06 {
+                let bassDecay = (0.06 - t) / 0.06
+                bass = sin(twoPi * 90.0 * t) * bassDecay * 0.55
+            }
+
+            // -- 2. Filtered white noise ------------------------------
+            let noise = Double.random(in: -1...1)
+            // Cutoff descends from 0.55 → 0.05.
+            let alpha = 0.55 - 0.50 * progress
+            lpState = lpState + alpha * (noise - lpState)
+            let noiseComponent = lpState * 0.85
+
+            // -- 3. Overall envelope (fast attack + exponential decay) -
+            let attackEnv = min(1.0, Double(i) / Double(attackFrames))
+            let decayEnv  = exp(-progress * 3.2)  // tail fades naturally
+            let envelope  = attackEnv * decayEnv
+
+            let mix = (bass + noiseComponent) * envelope
+            // Final peak — keep it noticeably louder than the swipe tones
+            // since the cleanup chime is a moment-of-completion event.
+            channel[i] = Float(mix) * 0.45
         }
         return buffer
     }
