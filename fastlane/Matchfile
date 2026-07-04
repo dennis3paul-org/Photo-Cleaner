@@ -6,3 +6,14 @@ GITHUB_REPOSITORY_OWNER ||= ENV["GITHUB_REPOSITORY_OWNER"]
 git_url("https://github.com/#{GITHUB_REPOSITORY_OWNER}/Match-Secrets.git")
 storage_mode("git")
 type("appstore")
+
+# ISOLATED BRANCH — do not remove. The default branch holds the cert +
+# profiles for Trio/Loop/xDrip (medical apps; must never be touched by
+# this project). When the shared cert expired, instead of cleaning the
+# shared branch we gave Photo Cleaner its own: match auto-creates the
+# branch and provisions a fresh cert + profile scoped to it.
+#
+# Note: all certs still live under the same Apple team, so if the other
+# apps' "nuke certs" maintenance revokes team distribution certs, re-run
+# this repo's "Provision Certificates" workflow to mint a new one here.
+git_branch("photo-cleaner")
