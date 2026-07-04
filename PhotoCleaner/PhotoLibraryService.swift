@@ -31,10 +31,21 @@ final class PhotoLibraryService: NSObject, ObservableObject {
     }
 
     func refreshTally() {
-        let opts = PHFetchOptions()
-        photoCount = PHAsset.fetchAssets(with: .image, options: opts).count
-        videoCount = PHAsset.fetchAssets(with: .video, options: opts).count
-        totalCount = PHAsset.fetchAssets(with: opts).count
+        // PhotoKit fetches are thread-safe; run them off the main actor.
+        // The old version did three synchronous full-library fetches on
+        // main — a visible hitch at launch and again on every library
+        // change notification.
+        Task.detached(priority: .userInitiated) {
+            let opts = PHFetchOptions()
+            let photos = PHAsset.fetchAssets(with: .image, options: opts).count
+            let videos = PHAsset.fetchAssets(with: .video, options: opts).count
+            await MainActor.run { [weak self] in
+                guard let self else { return }
+                self.photoCount = photos
+                self.videoCount = videos
+                self.totalCount = photos + videos
+            }
+        }
     }
 }
 

@@ -62,8 +62,23 @@ enum SoundEffects {
     /// pixel-identical to macOS but evokes the same feeling.
     static func playCleanupTrash() {
         setupIfNeeded()
-        guard isStarted, let buffer = renderTrashCrumple() else { return }
+        if trashBuffer == nil { trashBuffer = renderTrashCrumple() }
+        guard isStarted, let buffer = trashBuffer else { return }
         play(buffer: buffer)
+    }
+
+    /// Warm-up: start the audio session/engine and pre-render every
+    /// buffer so the first swipe doesn't pay session-activation + render
+    /// cost mid-gesture. Called once from app init.
+    static func prewarm() {
+        DispatchQueue.main.async {
+            setupIfNeeded()
+            _ = cachedTone(frequency: 660, durationMs: 100, waveform: .sine, peak: 0.18)
+            _ = cachedTone(frequency: 330, durationMs: 120, waveform: .sine, peak: 0.22)
+            _ = cachedTone(frequency: 880, durationMs: 70, waveform: .sine, peak: 0.18)
+            _ = cachedTone(frequency: 440, durationMs: 100, waveform: .sine, peak: 0.18)
+            if trashBuffer == nil { trashBuffer = renderTrashCrumple() }
+        }
     }
 
     // MARK: - Engine setup (lazy)
@@ -107,10 +122,27 @@ enum SoundEffects {
 
     // MARK: - Tone generation + playback
 
+    /// Rendered-buffer caches. Every tone is deterministic, so re-running
+    /// the render loop (up to ~22k sin() calls on the main thread) for
+    /// every single swipe was pure waste — render once, replay forever.
+    /// Main-thread-only access (all play* entry points are UI-driven).
+    private static var toneCache: [String: AVAudioPCMBuffer] = [:]
+    private static var trashBuffer: AVAudioPCMBuffer?
+
+    private static func cachedTone(frequency: Double, durationMs: Int, waveform: Waveform, peak: Float) -> AVAudioPCMBuffer? {
+        let key = "\(frequency)|\(durationMs)|\(waveform)|\(peak)"
+        if let hit = toneCache[key] { return hit }
+        guard let rendered = renderTone(
+            frequency: frequency, durationMs: durationMs, waveform: waveform, peak: peak
+        ) else { return nil }
+        toneCache[key] = rendered
+        return rendered
+    }
+
     private static func playTone(frequency: Double, durationMs: Int, waveform: Waveform, peak: Float) {
         setupIfNeeded()
         guard isStarted,
-              let buffer = renderTone(
+              let buffer = cachedTone(
                 frequency: frequency,
                 durationMs: durationMs,
                 waveform: waveform,

@@ -28,25 +28,21 @@ import WebKit
 struct WebVideoPlayer: UIViewRepresentable {
     let videoURL: URL
     let posterURL: URL?
-
-    /// One shared WKProcessPool across all video WebViews. This is what
-    /// makes "offscreen prefetch" actually accelerate playback: when a
-    /// hidden prefetch WebView loads video URL X, the bytes go into the
-    /// shared HTTP cache. When the visible WebView later requests the
-    /// same URL, the request is served from cache and playback starts
-    /// nearly instantly. (Pre-pool, each WebView had its own URL cache
-    /// and prefetched bytes never carried over.)
-    @MainActor
-    private static let sharedProcessPool = WKProcessPool()
+    /// Increment to force an immediate play() kick — wired to a SwiftUI
+    /// tap gesture on the card. Needed because the WebView itself has
+    /// .allowsHitTesting(false) (so drags feel native), which makes the
+    /// in-page tap-to-play listener unreachable. Low Power Mode blocks
+    /// autoplay at the system level, so a user-initiated kick path must
+    /// exist.
+    var playKick: Int = 0
 
     func makeUIView(context: Context) -> WKWebView {
         let config = WKWebViewConfiguration()
-        // Shared process pool → shared HTTP cache across all video
-        // WebView instances. The single most impactful change for
-        // perceived video speed: prefetched bytes are reused.
-        config.processPool = WebVideoPlayer.sharedProcessPool
-        // Shared cookie jar with the main GP WebView — critical for
-        // authenticating to Google's media endpoints.
+        // Shared cookie jar + HTTP cache with the main GP WebView —
+        // critical for authenticating to Google's media endpoints, and
+        // what lets prefetched bytes be reused across player instances.
+        // (WKProcessPool sharing was removed: it's been a no-op since
+        // iOS 15 — the websiteDataStore governs cache sharing.)
         config.websiteDataStore = .default()
         config.allowsInlineMediaPlayback = true
         config.mediaTypesRequiringUserActionForPlayback = []
@@ -108,10 +104,29 @@ struct WebVideoPlayer: UIViewRepresentable {
         return webView
     }
 
+    func makeCoordinator() -> Coordinator { Coordinator() }
+
+    final class Coordinator {
+        var lastKickTime: TimeInterval = 0
+        var lastPlayKick: Int = 0
+    }
+
     func updateUIView(_ uiView: WKWebView, context: Context) {
-        // Kick the video to play on every SwiftUI update — covers cases
-        // where iOS pauses the WebView when its host view becomes
-        // temporarily detached during a swipe transition.
+        // Kick the video to play on SwiftUI updates — covers cases where
+        // iOS pauses the WebView when its host view becomes temporarily
+        // detached during a swipe transition.
+        //
+        // THROTTLED: during a drag, SwiftUI re-renders the card at
+        // 60-120Hz and each render used to fire an evaluateJavaScript
+        // round-trip into the web process — main-thread + IPC churn that
+        // directly worked against swipe smoothness. Now at most one kick
+        // per 300ms, except an explicit playKick bump (user tapped the
+        // card) which always fires immediately.
+        let now = ProcessInfo.processInfo.systemUptime
+        let kicked = playKick != context.coordinator.lastPlayKick
+        guard kicked || now - context.coordinator.lastKickTime > 0.3 else { return }
+        context.coordinator.lastKickTime = now
+        context.coordinator.lastPlayKick = playKick
         uiView.evaluateJavaScript(
             "var v=document.getElementById('v'); if(v){v.play().catch(function(){});}",
             completionHandler: nil
@@ -196,14 +211,33 @@ struct WebVideoPlayer: UIViewRepresentable {
               v.addEventListener('canplay', function () { v.play().catch(function(){}); });
               v.addEventListener('loadeddata', function () { v.play().catch(function(){}); });
 
+              // Stall recovery: if the network fetch wedges (redirect
+              // hiccup, cookie race, cell handoff), re-kick the whole
+              // load pipeline — up to 2 times so a genuinely dead URL
+              // doesn't loop forever.
+              var reloadTries = 0;
+              function recover() {
+                if (reloadTries >= 2) return;
+                reloadTries++;
+                try { v.load(); } catch (e) {}
+                v.play().catch(function () {});
+              }
+              v.addEventListener('stalled', function () { setTimeout(recover, 1200); });
+              v.addEventListener('error', function () { setTimeout(recover, 400); });
+
               // Aggressive autoplay kicks — iOS Safari sometimes ignores
               // the autoplay attribute until the first frame is decoded.
-              setTimeout(function () { v.play().catch(function () {}); }, 100);
-              setTimeout(function () { v.play().catch(function () {}); }, 500);
-              setTimeout(function () { v.play().catch(function () {}); }, 1500);
+              // Longer tail (3s/5s) covers slow =dv redirect chains on
+              // cell connections.
+              [100, 500, 1500, 3000, 5000].forEach(function (ms) {
+                setTimeout(function () {
+                  if (v.paused) v.play().catch(function () {});
+                }, ms);
+              });
 
               // Tap-as-fallback: if autoplay was blocked, tapping the
-              // card kicks playback.
+              // card kicks playback. (Reached via the SwiftUI playKick
+              // path — the WebView itself doesn't get touches.)
               document.body.addEventListener('click', function () {
                 v.play().catch(function () {});
               });

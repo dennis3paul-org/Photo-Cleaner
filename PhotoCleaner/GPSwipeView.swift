@@ -8,6 +8,12 @@ import WebKit
 struct GPSwipeView: View {
     @EnvironmentObject var appModel: AppModel
     @State private var flyCommand: SwipeDecision?
+    /// Bumped on card tap; WebVideoPlayer fires an immediate play() kick
+    /// when it changes. The tap-to-play listener INSIDE the WebView is
+    /// unreachable (the player is .allowsHitTesting(false) so drags feel
+    /// native), and Low Power Mode blocks autoplay at the system level —
+    /// this is the user's manual escape hatch for a stuck video.
+    @State private var playKick: Int = 0
 
     /// Background pre-warm of action tokens; runs once when the view appears
     /// so the bulk-delete RPC at the end of triage has zero setup cost.
@@ -61,9 +67,8 @@ struct GPSwipeView: View {
     /// URL is already cached and displays instantly.
     private func triggerVideoPrefetch() {
         for photo in upcomingVideos {
-            guard let videoURL = primaryVideoURL(for: photo) else { continue }
-            let poster = enlargedURL(for: photo)
-            VideoFilePrefetcher.shared.prefetch(videoURL, posterURL: poster)
+            guard let videoURL = photo.videoURL else { continue }
+            VideoFilePrefetcher.shared.prefetch(videoURL, posterURL: photo.enlargedURL)
         }
     }
 
@@ -219,29 +224,24 @@ struct GPSwipeView: View {
                             flyCommand: $flyCommand,
                             onDecision: { handle($0) }
                         ) {
-                            // Mount WebVideoPlayer for EVERY visible stack
-                            // offset (0, 1, 2) — not just the top card.
-                            // Why: WebViews at offsets 1 and 2 are mostly
-                            // covered by the front card, but their video
-                            // elements still start loading the moment
-                            // they mount. By the time the user swipes
-                            // and offset 1 becomes offset 0, its first
-                            // frame is already painted — instant playback.
+                            // Mount WebVideoPlayer for offsets 0 and 1
+                            // only. Offset 1's WebView starts loading
+                            // while hidden behind the top card, so the
+                            // moment the user swipes it's already
+                            // painting frames — instant playback.
                             //
-                            // The transparent WebView + AsyncImage backdrop
-                            // architecture means non-video photos still
-                            // render cleanly (graceful onerror hides the
-                            // <video> element, AsyncImage continues to
-                            // show the still photo).
-                            //
-                            // Trade-off: up to 3 simultaneous video
-                            // decoders. iPhone handles ~4 cleanly, and
-                            // the back cards are mostly hidden so the
-                            // slight edge of playback isn't distracting.
-                            if let videoURL = primaryVideoURL(for: photo) {
+                            // Offset 2 used to mount a player too, but
+                            // that card is COMPLETELY hidden behind two
+                            // opaque cards — its WKWebView + video
+                            // decoder burned memory and battery for
+                            // pixels no one could see. It now renders
+                            // just the poster; its player mounts one
+                            // swipe later, still 1+ swipes before
+                            // visibility.
+                            if let videoURL = photo.videoURL, offset <= 1 {
                                 ZStack {
                                     RetryingAsyncImage(
-                                        url: enlargedURL(for: photo),
+                                        url: photo.enlargedURL,
                                         content: { image in
                                             image.resizable().aspectRatio(contentMode: .fit)
                                         },
@@ -249,28 +249,33 @@ struct GPSwipeView: View {
                                     )
                                     WebVideoPlayer(
                                         videoURL: videoURL,
-                                        posterURL: nil  // backdrop handles it
+                                        posterURL: nil,  // backdrop handles it
+                                        playKick: playKick
                                     )
                                     // Hit-testing disabled: every touch
                                     // (drags, taps, long-presses) skips
                                     // the WKWebView and goes straight to
                                     // the SwipeCard's DragGesture, so GP
                                     // cards feel as snappy as local
-                                    // PHAsset cards. Tradeoff: no tap-to-
-                                    // retry on the video element, but
-                                    // autoplay reliably starts within
-                                    // ~500ms now so that fallback is
-                                    // effectively unused anyway.
+                                    // PHAsset cards. Tap-to-play still
+                                    // works via the SwiftUI tap below.
                                     .allowsHitTesting(false)
+                                }
+                                .contentShape(Rectangle())
+                                .onTapGesture {
+                                    // Manual play kick — the escape hatch
+                                    // for autoplay blocked by Low Power
+                                    // Mode / decoder contention.
+                                    playKick &+= 1
                                 }
                             } else {
                                 RetryingAsyncImage(
-                                    url: enlargedURL(for: photo),
+                                    url: photo.enlargedURL,
                                     content: { image in
                                         image.resizable().aspectRatio(contentMode: .fit)
                                     },
                                     placeholder: {
-                                        placeholder(systemName: "photo")
+                                        placeholder(systemName: photo.isVideo ? "play.rectangle" : "photo")
                                     }
                                 )
                             }
@@ -348,36 +353,11 @@ struct GPSwipeView: View {
         }
     }
 
-    /// Rewrites the GP CDN size suffix to request a larger image (=w1200-h1200).
-    private func enlargedURL(for photo: GPPhoto) -> URL? {
-        var url = photo.thumbURL
-        url = url.replacingOccurrences(
-            of: #"=w\d+-h\d+"#,
-            with: "=w1200-h1200",
-            options: .regularExpression
-        )
-        url = url.replacingOccurrences(
-            of: #"=s\d+"#,
-            with: "=s1200",
-            options: .regularExpression
-        )
-        return URL(string: url)
-    }
-
-    /// The single video URL we hand to WebVideoPlayer. `=dv` is GP's own
-    /// download-video format — it's what GP's web player itself requests
-    /// when you tap a video in the library. Since WebVideoPlayer runs in
-    /// a WKWebView using the shared cookie store, the authenticated
-    /// redirect chain Just Works the same way it does in Chrome.
-    private func primaryVideoURL(for photo: GPPhoto) -> URL? {
-        let widthHeight = #"=w\d+-h\d+(?:-[a-z])?(?:-no)?"#
-        let square = #"=s\d+(?:-[a-z])?(?:-no)?"#
-        var s = photo.thumbURL
-        s = s.replacingOccurrences(of: widthHeight, with: "=dv", options: .regularExpression)
-        s = s.replacingOccurrences(of: square, with: "=dv", options: .regularExpression)
-        return URL(string: s)
-    }
 }
+// URL derivation (enlargedURL / videoURL) lives on GPPhoto itself so the
+// swipe cards, the prefetcher pre-warm, and GooglePhotosView all derive
+// byte-identical URLs — a mismatch anywhere means the URLCache/file-cache
+// prefetch silently never hits.
 
 // Video playback is delegated to WebVideoPlayer (WKWebView-based HTML5 video
 // element). We dropped the AVPlayer path because GP's `=dv` media URLs serve

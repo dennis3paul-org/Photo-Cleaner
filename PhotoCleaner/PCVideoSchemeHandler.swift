@@ -40,6 +40,27 @@ final class PCVideoSchemeHandler: NSObject, WKURLSchemeHandler {
             .appendingPathComponent("photo-cleaner-videos")
     }
 
+    /// Tasks WebKit has cancelled via `stop`. Calling didReceive/didFinish
+    /// on a stopped task crashes with an NSInternalInconsistencyException,
+    /// and our disk read completes asynchronously — so every callback into
+    /// the task first checks this set. Guarded by `stateLock` because
+    /// start/stop arrive on the main thread while the disk read finishes
+    /// on the IO queue.
+    private var stoppedTasks = Set<ObjectIdentifier>()
+    private let stateLock = NSLock()
+
+    /// Serial background queue for disk reads. The previous version did
+    /// Data(contentsOf:) synchronously in start — WKURLSchemeHandler
+    /// callbacks arrive on the main thread, so serving a large cached
+    /// video stalled the UI right as its card became visible.
+    private let ioQueue = DispatchQueue(label: "pcvideo.io", qos: .userInitiated)
+
+    private func isStopped(_ task: WKURLSchemeTask) -> Bool {
+        stateLock.lock()
+        defer { stateLock.unlock() }
+        return stoppedTasks.contains(ObjectIdentifier(task))
+    }
+
     func webView(_ webView: WKWebView, start urlSchemeTask: WKURLSchemeTask) {
         guard let url = urlSchemeTask.request.url else {
             urlSchemeTask.didFailWithError(URLError(.badURL))
@@ -63,41 +84,98 @@ final class PCVideoSchemeHandler: NSObject, WKURLSchemeHandler {
             return
         }
 
-        do {
-            let data = try Data(contentsOf: fileURL)
-            let mime: String
-            switch fileURL.pathExtension.lowercased() {
-            case "mp4":  mime = "video/mp4"
-            case "mov":  mime = "video/quicktime"
-            case "m4v":  mime = "video/x-m4v"
-            case "webm": mime = "video/webm"
-            default:     mime = "video/mp4"
+        let rangeHeader = urlSchemeTask.request.value(forHTTPHeaderField: "Range")
+
+        ioQueue.async { [weak self] in
+            guard let self else { return }
+            let result: Result<(Data, HTTPURLResponse), Error> = Self.buildResponse(
+                url: url, fileURL: fileURL, rangeHeader: rangeHeader
+            )
+            // WKURLSchemeTask methods must be called on the thread the
+            // handler was invoked on (main).
+            DispatchQueue.main.async {
+                guard !self.isStopped(urlSchemeTask) else {
+                    // Task is dead — drop its bookkeeping entry so the
+                    // stopped set doesn't grow across a long session.
+                    self.stateLock.lock()
+                    self.stoppedTasks.remove(ObjectIdentifier(urlSchemeTask))
+                    self.stateLock.unlock()
+                    return
+                }
+                switch result {
+                case .success(let (body, response)):
+                    urlSchemeTask.didReceive(response)
+                    urlSchemeTask.didReceive(body)
+                    urlSchemeTask.didFinish()
+                case .failure(let error):
+                    urlSchemeTask.didFailWithError(error)
+                }
             }
-            let headers: [String: String] = [
-                "Content-Type": mime,
-                "Content-Length": String(data.count),
-                "Accept-Ranges": "bytes",
-                "Cache-Control": "no-store"
-            ]
-            guard let response = HTTPURLResponse(
-                url: url,
-                statusCode: 200,
-                httpVersion: "HTTP/1.1",
-                headerFields: headers
-            ) else {
-                urlSchemeTask.didFailWithError(URLError(.cannotParseResponse))
-                return
-            }
-            urlSchemeTask.didReceive(response)
-            urlSchemeTask.didReceive(data)
-            urlSchemeTask.didFinish()
-        } catch {
-            urlSchemeTask.didFailWithError(error)
         }
     }
 
+    /// Read the file (memory-mapped, so a 300MB video doesn't copy into
+    /// RAM) and honor Range requests with a 206 — the <video> element's
+    /// loop/seek path issues `Range: bytes=N-` requests, and answering
+    /// them with a full 200 body forced WebKit to re-buffer the whole
+    /// file on every loop iteration.
+    private static func buildResponse(
+        url: URL, fileURL: URL, rangeHeader: String?
+    ) -> Result<(Data, HTTPURLResponse), Error> {
+        let data: Data
+        do {
+            data = try Data(contentsOf: fileURL, options: .mappedIfSafe)
+        } catch {
+            return .failure(error)
+        }
+
+        let mime: String
+        switch fileURL.pathExtension.lowercased() {
+        case "mp4":  mime = "video/mp4"
+        case "mov":  mime = "video/quicktime"
+        case "m4v":  mime = "video/x-m4v"
+        case "webm": mime = "video/webm"
+        default:     mime = "video/mp4"
+        }
+
+        let total = data.count
+        var status = 200
+        var body = data
+        var headers: [String: String] = [
+            "Content-Type": mime,
+            "Accept-Ranges": "bytes",
+            "Cache-Control": "no-store"
+        ]
+
+        // Parse "bytes=start-end" (end optional). Malformed → serve 200.
+        if let rangeHeader,
+           let match = rangeHeader.range(of: #"bytes=(\d*)-(\d*)"#, options: .regularExpression) {
+            let spec = String(rangeHeader[match]).dropFirst("bytes=".count)
+            let parts = spec.split(separator: "-", maxSplits: 1, omittingEmptySubsequences: false)
+            let start = parts.count > 0 ? Int(parts[0]) : nil
+            let end = parts.count > 1 ? Int(parts[1]) : nil
+            if let s = start, s < total {
+                let e = min(end ?? total - 1, total - 1)
+                if s <= e {
+                    status = 206
+                    body = data.subdata(in: s..<(e + 1))
+                    headers["Content-Range"] = "bytes \(s)-\(e)/\(total)"
+                }
+            }
+        }
+        headers["Content-Length"] = String(body.count)
+
+        guard let response = HTTPURLResponse(
+            url: url, statusCode: status, httpVersion: "HTTP/1.1", headerFields: headers
+        ) else {
+            return .failure(URLError(.cannotParseResponse))
+        }
+        return .success((body, response))
+    }
+
     func webView(_ webView: WKWebView, stop urlSchemeTask: WKURLSchemeTask) {
-        // No streaming/cancellation state to clean up — we serve the
-        // whole file synchronously in `start`.
+        stateLock.lock()
+        stoppedTasks.insert(ObjectIdentifier(urlSchemeTask))
+        stateLock.unlock()
     }
 }

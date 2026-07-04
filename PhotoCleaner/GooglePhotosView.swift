@@ -16,6 +16,7 @@ struct GooglePhotosView: View {
     @State private var showSelectionMismatch: Bool = false
     @State private var lastDebug: String?
     @State private var isRandomLoading: Bool = false
+    @State private var isHarvesting: Bool = false
     @State private var randomError: String?
     @State private var showRandomError: Bool = false
 
@@ -43,19 +44,6 @@ struct GooglePhotosView: View {
             }
             .ignoresSafeArea(edges: .bottom)
 
-            // Full-screen loading overlay during random pick. The
-            // EzkLib date sampler doesn't scroll the WebView itself,
-            // but rJ0tlb misses occasionally force a `webView.reload()`
-            // to recapture the library date bounds — that reload is
-            // what the user was seeing as "scrolling through a bunch
-            // of stuff" before the triage view appears. Covering the
-            // WebView with an opaque sheet keeps the transition clean
-            // regardless of what happens in the background.
-            if isRandomLoading {
-                randomLoadingOverlay
-                    .transition(.opacity)
-            }
-
             // Overlays
             if appModel.phase == .googleSwipe {
                 GPSwipeView(prefetchAction: {
@@ -74,11 +62,10 @@ struct GooglePhotosView: View {
                     hideDeletedAction: { ids in
                         await controller.hideDeletedPhotos(ids)
                     },
-                    reloadAction: {
-                        await controller.reloadKeepingScroll()
-                    },
-                    nativeDeleteAction: { keepIds in
-                        await controller.deleteViaNativeUI(keepIds: keepIds)
+                    nativeDeleteAction: { keepIds, expectedCount in
+                        await controller.deleteViaNativeUI(
+                            keepIds: keepIds, expectedDeleteCount: expectedCount
+                        )
                     },
                     diagnoseAction: {
                         await controller.diagnose()
@@ -87,10 +74,27 @@ struct GooglePhotosView: View {
                 .background(Color(.systemBackground))
                 .transition(.opacity)
             }
+
+            // Full-screen loading overlay while a batch is being built —
+            // random pick (may reload the WebView to recapture rJ0tlb
+            // bounds) or the deep-scroll selection harvest (visibly
+            // scrolls the whole grid, up to tens of seconds on big
+            // selections). LAST in the ZStack + zIndex so it stays on
+            // top through the phase-overlay crossfade — previously the
+            // WebView peeked through mid-transition.
+            if isRandomLoading || isHarvesting {
+                loadingOverlay(
+                    title: isHarvesting ? "Collecting your selection…" : "Building random batch…",
+                    subtitle: isHarvesting ? "Scanning the photo grid" : "Sampling across your library"
+                )
+                .transition(.opacity)
+                .zIndex(10)
+            }
         }
         .animation(.easeInOut(duration: 0.2), value: appModel.phase)
         .animation(.easeInOut(duration: 0.2), value: gpSelectedCount > 0)
-        .animation(.easeInOut(duration: 0.15), value: isRandomLoading)
+        .animation(.easeInOut(duration: 0.2), value: isRandomLoading)
+        .animation(.easeInOut(duration: 0.2), value: isHarvesting)
         .task {
             // Sync state from the (possibly reused) WebView so the toolbar
             // immediately shows "Reload" instead of flashing "Sign in" when
@@ -102,6 +106,19 @@ struct GooglePhotosView: View {
             startPolling()
         }
         .onDisappear { pollTimer?.invalidate() }
+        .onChange(of: appModel.phase) { _, newPhase in
+            // The selection poll only matters while the user is browsing
+            // GP. During swipe/cleanup phases the old guard skipped the
+            // JS eval but the timer kept waking the CPU every 0.7s for
+            // the whole (potentially long) triage session — pause it
+            // outright and resume on return.
+            if newPhase == .googlePhotos {
+                startPolling()
+            } else {
+                pollTimer?.invalidate()
+                pollTimer = nil
+            }
+        }
         .sheet(isPresented: $showSelectionMismatch) {
             mismatchSheet
         }
@@ -157,22 +174,22 @@ struct GooglePhotosView: View {
         .padding(.vertical, 10)
     }
 
-    // MARK: Random loading overlay
+    // MARK: Loading overlay
 
-    /// Full-screen opaque overlay shown while we're building the random
-    /// batch. Hides any visible scrolling / reloading happening behind
-    /// it (rJ0tlb refresh, EzkLib RPC fan-out) so the experience is just
-    /// "tap → loading → triage".
-    private var randomLoadingOverlay: some View {
+    /// Full-screen opaque overlay shown while a triage batch is being
+    /// built. Hides any visible scrolling / reloading happening behind it
+    /// (rJ0tlb refresh reload, deep-harvest grid scrolling, EzkLib RPC
+    /// fan-out) so the experience is just "tap → loading → triage".
+    private func loadingOverlay(title: String, subtitle: String) -> some View {
         ZStack {
             Color(.systemBackground)
                 .ignoresSafeArea()
             VStack(spacing: 16) {
                 ProgressView()
                     .controlSize(.large)
-                Text("Building random batch…")
+                Text(title)
                     .font(.headline)
-                Text("Sampling across your library")
+                Text(subtitle)
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
             }
@@ -260,13 +277,16 @@ struct GooglePhotosView: View {
     // MARK: Actions
 
     private func startTriage() async {
-        // Use the deep-scroll harvester so virtualized selections (photos the
-        // user selected, then scrolled past, so GP unmounted the anchor)
-        // still make it into the triage queue. A shallow scan only finds
-        // currently-rendered anchors — that's why "35 selected" was triaging
-        // far fewer.
+        guard !isHarvesting else { return }
+        // The deep-scroll harvester drives the GP grid top-to-bottom to
+        // materialize virtualized selections — visible scrolling that can
+        // take many seconds on a big selection. Cover it with the opaque
+        // loading overlay (same treatment as random pick) so the user sees
+        // a clean "collecting…" state instead of the page thrashing.
+        isHarvesting = true
         let selected = await controller.gpGetSelectedDeep()
         if selected.isEmpty {
+            isHarvesting = false
             // GP's header says photos are selected but our DOM scan came up
             // empty — surface a diagnostic instead of triaging zero photos.
             lastDebug = await controller.gpSelectionDebug()
@@ -275,6 +295,7 @@ struct GooglePhotosView: View {
         }
         prewarmFirstVideos(in: selected)
         appModel.startGPTriage(selected)
+        dropOverlayAfterTransition { isHarvesting = false }
     }
 
     /// Kick off URLSession downloads for the first ~2 video URLs in the
@@ -286,37 +307,20 @@ struct GooglePhotosView: View {
     private func prewarmFirstVideos(in photos: [GPPhoto]) {
         let videos = photos.filter { $0.isVideo }.prefix(2)
         for photo in videos {
-            guard let videoURL = primaryVideoURL(for: photo) else { continue }
-            let poster = enlargedURL(for: photo)
-            VideoFilePrefetcher.shared.prefetch(videoURL, posterURL: poster)
+            guard let videoURL = photo.videoURL else { continue }
+            VideoFilePrefetcher.shared.prefetch(videoURL, posterURL: photo.enlargedURL)
         }
     }
 
-    /// Re-derive the =dv video URL — duplicated from GPSwipeView to avoid
-    /// cross-view dependencies. Both produce the same URL for the same
-    /// photo so the prefetcher's cache hits.
-    private func primaryVideoURL(for photo: GPPhoto) -> URL? {
-        let widthHeight = #"=w\d+-h\d+(?:-[a-z])?(?:-no)?"#
-        let square = #"=s\d+(?:-[a-z])?(?:-no)?"#
-        var s = photo.thumbURL
-        s = s.replacingOccurrences(of: widthHeight, with: "=dv", options: .regularExpression)
-        s = s.replacingOccurrences(of: square, with: "=dv", options: .regularExpression)
-        return URL(string: s)
-    }
-
-    private func enlargedURL(for photo: GPPhoto) -> URL? {
-        var url = photo.thumbURL
-        url = url.replacingOccurrences(
-            of: #"=w\d+-h\d+"#,
-            with: "=w1200-h1200",
-            options: .regularExpression
-        )
-        url = url.replacingOccurrences(
-            of: #"=s\d+"#,
-            with: "=s1200",
-            options: .regularExpression
-        )
-        return URL(string: url)
+    /// Keep the loading overlay up until the swipe view has fully faded
+    /// in (0.2s phase crossfade), THEN drop it. Dropping it in the same
+    /// transaction as the phase change let the WebView peek through the
+    /// crossfade for a couple of frames.
+    private func dropOverlayAfterTransition(_ clear: @escaping () -> Void) {
+        Task {
+            try? await Task.sleep(for: .milliseconds(350))
+            clear()
+        }
     }
 
     /// Build a truly random batch using the EzkLib-by-date sampler. Picks
@@ -331,7 +335,6 @@ struct GooglePhotosView: View {
     private func startRandomTriage(count: Int) async {
         guard !isRandomLoading else { return }
         isRandomLoading = true
-        defer { isRandomLoading = false }
 
         // If bounds aren't captured yet, nudge a reload and wait.
         if controller.oldestMs == nil || controller.newestMs == nil {
@@ -341,6 +344,7 @@ struct GooglePhotosView: View {
 
         let result = await controller.gpRandomBatchByDate(count: count)
         if result.photos.isEmpty {
+            isRandomLoading = false
             randomError = result.error ??
                 "Couldn't build a random batch. Make sure you're signed into Google Photos."
             showRandomError = true
@@ -348,6 +352,10 @@ struct GooglePhotosView: View {
         }
         prewarmFirstVideos(in: result.photos)
         appModel.startGPTriage(result.photos)
+        // Overlay comes down only after the swipe view has faded in —
+        // a `defer` here dropped it mid-crossfade and the (possibly
+        // mid-reload) WebView flashed through.
+        dropOverlayAfterTransition { isRandomLoading = false }
     }
 
     // MARK: Polling
@@ -358,7 +366,8 @@ struct GooglePhotosView: View {
         pollTimer?.invalidate()
         let timer = Timer.scheduledTimer(withTimeInterval: 0.7, repeats: true) { _ in
             Task { @MainActor in
-                guard appModel.phase == .googlePhotos else { return }
+                guard appModel.phase == .googlePhotos,
+                      !isRandomLoading, !isHarvesting else { return }
                 gpSelectedCount = await controller.gpSelectedCount()
             }
         }

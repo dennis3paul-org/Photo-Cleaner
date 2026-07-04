@@ -16,17 +16,12 @@ struct GPCleanupView: View {
     /// After cleanup, hide deleted tiles from the WebView DOM (preserves scroll).
     let hideDeletedAction: ([String]) async -> Void
 
-    /// Soft reload the GP page once the bulk RPC has *actually* completed,
-    /// so the gaps left by absolutely-positioned tiles get cleaned up. The
-    /// scroll position survives via sessionStorage + the scroll-restore
-    /// userscript that runs on every page load. Only used by the XwAOJf
-    /// fallback path; the native-UI path doesn't need it.
-    let reloadAction: () async -> Void
-
     /// Primary delete path: drive GP's own trash UI. Takes the list of
-    /// "keep" photo IDs to deselect first. Returns nil on success or an
-    /// error string for the fallback to consume.
-    let nativeDeleteAction: ([String]) async -> String?
+    /// "keep" photo IDs to deselect first plus the expected delete count
+    /// (the JS aborts if GP's remaining selection doesn't match — protects
+    /// photos the user never triaged from a partial deep-harvest). Returns
+    /// nil on success or an error string for the fallback to consume.
+    let nativeDeleteAction: ([String], Int) async -> String?
 
     /// Diagnose helper for the cleanup flow (kept for parity with the old API).
     let diagnoseAction: () async -> String
@@ -62,7 +57,14 @@ struct GPCleanupView: View {
             // Items go to GP trash (60 days recoverable) so the swipe is the
             // confirmation.
             guard !hasStarted else { return }
-            await runCleanup()
+            hasStarted = true
+            // UNSTRUCTURED task on purpose: .task is cancelled the moment
+            // the view disappears, and the optimistic UI enables "Back to
+            // library" immediately — leaving early would have cancelled
+            // the XwAOJf fallback mid-flight and silently dropped the
+            // delete. The detachment lets the delete finish regardless of
+            // where the user navigates.
+            Task { await runCleanup() }
         }
     }
 
@@ -237,7 +239,6 @@ struct GPCleanupView: View {
     /// the grid in place — no manual reload + scroll restore required, and
     /// no gaps left behind.
     private func runCleanup() async {
-        hasStarted = true
         isRunning = false   // skip the loading view — we're optimistic
         let queue = appModel.gpDeleteQueue
         let keepIds = appModel.gpKeepIds
@@ -252,7 +253,7 @@ struct GPCleanupView: View {
 
         // Primary: drive GP's own trash UI. If it works, the deletion AND
         // the in-place grid refresh both happen natively.
-        let nativeError = await nativeDeleteAction(keepIds)
+        let nativeError = await nativeDeleteAction(keepIds, queue.count)
         if nativeError == nil {
             durationMs = Int(Date().timeIntervalSince(startTime) * 1000)
             phase = "done"

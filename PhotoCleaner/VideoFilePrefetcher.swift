@@ -51,12 +51,19 @@ final class VideoFilePrefetcher {
 
     /// Subscribe to be notified when `remote` is cached. Called by
     /// WebVideoPlayer when it mounts but the file isn't ready yet — so
-    /// it can swap to the file:// URL as soon as it lands.
+    /// it can swap `<video src>` as soon as the file lands.
+    ///
+    /// IMPORTANT: callbacks receive the `pcvideo://` scheme URL, never the
+    /// raw `file://` path. The player's page is on https://photos.google.com,
+    /// and WebKit blocks file:// loads from https pages — a file:// swap
+    /// replaces a slow-but-working remote stream with a permanently dead
+    /// src (black card). That was the root cause of "videos occasionally
+    /// don't play".
     func observe(_ remote: URL, callback: @escaping (URL) -> Void) {
         let key = remote.absoluteString
         // If already cached, fire synchronously.
-        if let file = cachedFiles[key] {
-            callback(file)
+        if let file = cachedFiles[key], let scheme = PCVideoSchemeHandler.url(for: file) {
+            callback(scheme)
             return
         }
         observers[key, default: []].append(callback)
@@ -101,11 +108,16 @@ final class VideoFilePrefetcher {
             //    the =dv request because URLSession is "anonymous".
             await Self.syncGoogleCookiesFromWebKit()
 
-            // 2. Download.
-            let (data, response) = try await URLSession.shared.data(from: remote)
+            // 2. Download STREAMING TO DISK. download(from:) writes to a
+            //    temp file as bytes arrive — data(from:) buffered whole
+            //    videos in RAM, and 4K =dv originals can be hundreds of
+            //    MB. With 4 prefetches + 3 live WebViews that risked
+            //    jetsam on device.
+            let (tmpURL, response) = try await URLSession.shared.download(from: remote)
 
             guard let http = response as? HTTPURLResponse,
                   (200...299).contains(http.statusCode) else {
+                try? FileManager.default.removeItem(at: tmpURL)
                 markFailed(key)
                 return
             }
@@ -115,11 +127,12 @@ final class VideoFilePrefetcher {
             // actually a photo — mark failed so we don't retry, and
             // WebVideoPlayer's onerror still falls back to poster.
             guard mime.hasPrefix("video/") else {
+                try? FileManager.default.removeItem(at: tmpURL)
                 markFailed(key)
                 return
             }
 
-            // 3. Save to tmp file with a stable name.
+            // 3. Move into our cache dir with a stable name.
             let ext: String
             if mime.contains("mp4") { ext = "mp4" }
             else if mime.contains("quicktime") || mime.contains("mov") { ext = "mov" }
@@ -129,15 +142,17 @@ final class VideoFilePrefetcher {
             // the same path.
             let filename = "v_\(abs(key.hashValue)).\(ext)"
             let fileURL = tempDir.appendingPathComponent(filename)
-            try data.write(to: fileURL, options: .atomic)
+            try? FileManager.default.removeItem(at: fileURL)
+            try FileManager.default.moveItem(at: tmpURL, to: fileURL)
 
             cachedFiles[key] = fileURL
             inFlight.remove(key)
 
-            // 4. Notify any waiters.
-            if let cbs = observers[key] {
+            // 4. Notify any waiters — with the pcvideo:// URL, NOT the
+            //    raw file:// path (see observe() for why).
+            if let cbs = observers[key], let scheme = PCVideoSchemeHandler.url(for: fileURL) {
                 observers[key] = nil
-                for cb in cbs { cb(fileURL) }
+                for cb in cbs { cb(scheme) }
             }
         } catch {
             markFailed(key)

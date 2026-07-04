@@ -30,6 +30,34 @@ struct GPPhoto: Identifiable, Hashable, Codable {
         else { return nil }
         return String(label[r])
     }
+
+    /// Card-sized display URL: rewrites the GP CDN size suffix to request
+    /// a larger image (=w1200-h1200). Shared by the swipe-card backdrop
+    /// and the poster pre-warm path — both MUST derive the same URL or
+    /// the URLCache prefetch never hits.
+    var enlargedURL: URL? {
+        var url = thumbURL
+        url = url.replacingOccurrences(
+            of: #"=w\d+-h\d+"#, with: "=w1200-h1200", options: .regularExpression
+        )
+        url = url.replacingOccurrences(
+            of: #"=s\d+"#, with: "=s1200", options: .regularExpression
+        )
+        return URL(string: url)
+    }
+
+    /// The video URL handed to WebVideoPlayer. `=dv` is GP's own
+    /// download-video format — what GP's web player itself requests.
+    /// The shared WKWebsiteDataStore cookie jar authenticates the
+    /// redirect chain the same way Chrome does.
+    var videoURL: URL? {
+        let widthHeight = #"=w\d+-h\d+(?:-[a-z])?(?:-no)?"#
+        let square = #"=s\d+(?:-[a-z])?(?:-no)?"#
+        var s = thumbURL
+        s = s.replacingOccurrences(of: widthHeight, with: "=dv", options: .regularExpression)
+        s = s.replacingOccurrences(of: square, with: "=dv", options: .regularExpression)
+        return URL(string: s)
+    }
 }
 
 enum GPError: LocalizedError {
@@ -78,6 +106,12 @@ final class GooglePhotosWebController: ObservableObject {
     /// so we don't loop forever if rJ0tlb still doesn't fire.
     private var nudgePerformed = false
     func markNudgePerformed() { nudgePerformed = true }
+    /// Read by the navigation delegate before scheduling another nudge —
+    /// without this check every didFinish with no captured rJ0tlb queued
+    /// another reload, which was an infinite reload loop whenever the
+    /// capture/parse kept failing (visible as the page randomly reloading
+    /// out from under the user every few seconds).
+    var hasNudged: Bool { nudgePerformed }
 
     private static let kCachedRJ0Key = "pc_rj0_snapshot_v1"
     private static let cacheTTL: TimeInterval = 60 * 60  // 1h
@@ -534,12 +568,20 @@ final class GooglePhotosWebController: ObservableObject {
     /// natively — internal state update + animated grid reflow + scroll
     /// preserved. No reload needed. Returns nil on success; an error string
     /// on failure (so the caller can fall back to XwAOJf).
-    func deleteViaNativeUI(keepIds: [String]) async -> String? {
+    ///
+    /// `expectedDeleteCount` is a safety net: the native path trashes
+    /// whatever GP still has selected, and if the deep harvest collected
+    /// fewer photos than the user actually selected, un-triaged photos
+    /// would remain selected and get deleted. The JS verifies GP's own
+    /// "N selected" header equals this count after deselecting keeps, and
+    /// aborts (→ XwAOJf fallback, which deletes exactly the queue) on any
+    /// mismatch.
+    func deleteViaNativeUI(keepIds: [String], expectedDeleteCount: Int) async -> String? {
         guard let webView else { return "no web view" }
         do {
             let raw = try await webView.callAsyncJavaScript(
-                "return await window.__photoCleanerDeleteViaGPUI(keepIds)",
-                arguments: ["keepIds": keepIds],
+                "return await window.__photoCleanerDeleteViaGPUI(keepIds, expectedCount)",
+                arguments: ["keepIds": keepIds, "expectedCount": expectedDeleteCount],
                 in: nil,
                 contentWorld: .page
             )
@@ -2021,7 +2063,7 @@ struct GooglePhotosWebView: UIViewRepresentable {
         return null;
       }
 
-      window.__photoCleanerDeleteViaGPUI = async function (keepIds) {
+      window.__photoCleanerDeleteViaGPUI = async function (keepIds, expectedCount) {
         // ---- Pre-check: is GP actually in selection mode? --------------
         // If the user reached cleanup via the Random pill (not by long-
         // pressing photos in GP first), there's no "N selected" toolbar
@@ -2048,6 +2090,27 @@ struct GooglePhotosWebView: UIViewRepresentable {
             // If no checkmark found, the photo wasn't selected — skip,
             // don't fall back to clicking the anchor (would navigate).
             await new Promise(function (r) { setTimeout(r, 100); });
+          }
+          // Let GP's header count settle after the last deselect click.
+          await new Promise(function (r) { setTimeout(r, 250); });
+        }
+
+        // 1b. SAFETY: GP's trash will delete whatever is STILL selected.
+        //     If the deep harvest under-collected (virtualized grid, scroll
+        //     cap), photos the user never triaged are still selected right
+        //     now — clicking trash would delete them. Verify GP's own "N
+        //     selected" header equals the delete-queue size; on mismatch,
+        //     abort so the XwAOJf fallback (which deletes exactly the
+        //     queued IDs, nothing more) takes over.
+        if (typeof expectedCount === 'number' && expectedCount > 0) {
+          var remaining = readGPSelectionCount();
+          if (remaining > 0 && remaining !== expectedCount) {
+            return {
+              ok: false,
+              error: 'selection mismatch: GP shows ' + remaining +
+                     ' selected but delete queue has ' + expectedCount +
+                     ' — aborting native trash, using XwAOJf'
+            };
           }
         }
 
@@ -2441,13 +2504,17 @@ struct GooglePhotosWebView: UIViewRepresentable {
             if let host = webView.url?.host?.lowercased(), host == "photos.google.com" {
                 UserDefaults.standard.set(true, forKey: "gpHasSignedIn")
                 // Schedule a nudge: if no rJ0tlb arrives within 3s,
-                // reload to re-trigger bootstrap. Persisted WebViews
+                // reload ONCE to re-trigger bootstrap. Persisted WebViews
                 // that were already loaded in a prior session won't
-                // refire rJ0tlb without this nudge.
+                // refire rJ0tlb without this nudge. The hasNudged guard
+                // is essential — without it, every reload's didFinish
+                // scheduled another reload whenever capture kept failing:
+                // an infinite reload loop that yanked the page out from
+                // under the user every few seconds.
                 Task { @MainActor [weak controller = parent.controller, weak webView] in
                     try? await Task.sleep(for: .seconds(3))
                     guard let controller, let webView else { return }
-                    if controller.libraryTotal == nil {
+                    if controller.libraryTotal == nil, !controller.hasNudged {
                         controller.markNudgePerformed()
                         webView.reload()
                     }
